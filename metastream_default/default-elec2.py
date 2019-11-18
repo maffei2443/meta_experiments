@@ -1,10 +1,12 @@
 import argparse
-import numpy as np
-import pandas as pd
-
 import warnings
 warnings.filterwarnings("ignore")
 
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+from pymfe.mfe import MFE
 from tqdm import tqdm
 
 from sklearn.model_selection import KFold, train_test_split
@@ -21,9 +23,9 @@ from imblearn.metrics import geometric_mean_score, classification_report_imbalan
 import lightgbm as lgb
 
 parser = argparse.ArgumentParser(description='Process params for metastream.')
-parser.add_argument('--omega', help='train window size.')
-parser.add_argument('--gamma', help='selection window size.')
-parser.add_argument('--initial', help='initial data.')
+parser.add_argument('--omega', type=int, help='train window size.')
+parser.add_argument('--gamma', type=int, help='selection window size.')
+parser.add_argument('--initial', type=int, help='initial data.')
 parser.add_argument('--target', help='target label.')
 parser.add_argument('--eval_metric', help='eval metric for metastream.')
 parser.add_argument('--metay', help='')
@@ -37,6 +39,16 @@ metrics = {
 }
 metay_label = 'clf'
 
+lgb_params = {
+        'boosting_type': 'gbdt',
+        'objective': 'binary',
+        'learning_rate': 0.01,
+        'num_leaves': 35,
+        'metric': 'auc',
+        'is_unbalance': False,
+        'seed': 42,
+        'verbosity': -1,
+    }
 
 params = [
         {"C": [1,10,100],
@@ -59,6 +71,8 @@ initial_data = args.initial
 target = args.target
 eval_metric = metrics[args.eval_metric]
 
+df = pd.read_csv('../data/elec2/eletricity.csv')
+
 datasize = omega * initial_data // gamma - 1 # initial base data
 Xcv, ycv = df.loc[:datasize].drop([target], axis=1), df.loc[:datasize, target]
 
@@ -68,6 +82,7 @@ for model, param in tqdm(zip(models, params), total=len(models)):
     rscv.fit(Xcv, ycv)
     model.set_params(**rscv.best_params_)
 
+mfe = MFE()
 for idx in tqdm(range(initial_data)):
     train = df.iloc[idx * gamma:idx * gamma + omega]
     sel = df.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
@@ -101,12 +116,9 @@ mxtrain, mxtest, mytrain, mytest =\
                      metadf[metay_label], random_state=42)
 
 
-metas = lgbm.train(lgbm_params,
-                   train_set=lgbm.Dataset(mxtrain, mytrain),
-                   valid_set=lgbm.Dataset(mxtest, mytest),
-                   early_stopping_rounds=20)
+metas = lgb.train(lgb_params, train_set=lgb.Dataset(mxtrain, mytrain))
 
-myhattest = metas.predict(mxtest)
+myhattest = (metas.predict(mxtest) >= .5).astype(int)
 print("Kappa: ", cohen_kappa_score(mytest, myhattest))
 print("GMean: ", geometric_mean_score(mytest, myhattest))
 print("Accuracy: ", accuracy_score(mytest, myhattest))
@@ -115,7 +127,7 @@ print(classification_report_imbalanced(mytest, myhattest))
 
 
 default = metadf[metay_label].value_counts().argmax() # major class in training dataset
-metadata = np.empty((0,21), np.float64)
+metadata = np.empty((0,metadf.shape[1]-1), np.float32)
 metay = []
 count = 0
 batch = 20
@@ -130,49 +142,42 @@ score_default = []
 small_data = 5000
 until_data = min(initial_data + small_data, int((df.shape[0]-omega)/gamma))
 
-exit(0)
+pbar = tqdm(range(initial_data, until_data))
+for idx in pbar:
+    train = df.iloc[idx*gamma:idx*gamma+omega]
+    sel = df.iloc[idx*gamma+omega:(idx+1)*gamma+omega]
 
-with localconverter(ro.default_converter + pandas2ri.converter):
-    for idx in tqdm_notebook(range(initial_data, until_data)):
-        train = df.iloc[idx*gamma:idx*gamma+omega]
-        sel = df.iloc[idx*gamma+omega:(idx+1)*gamma+omega]
+    xtrain, ytrain = train.drop(target, axis=1), train[target]
+    xsel, ysel = sel.drop(target, axis=1), sel[target]
 
-        xtrain, ytrain = train.drop(target, axis=1), train[target]
-        xsel, ysel = sel.drop(target, axis=1), sel[target]
+    mfe.fit(xtrain.values, ytrain.values)
+    mfe_feats = [[v for k,v in zip(*mfe.extract()) if k not in\
+                  missing_columns]]
 
-        mfe_feats = []
-        ecol = importr("ECoL")
-        mfe_feats = ecol.complexity(xtrain, ytrain)
-        mfe_feats = np.delete(mfe_feats, 8).reshape(1, -1)
+    # predict best model
+    yhat_model_name = int(metas.predict(mfe_feats)[0]>=.5)
+    m_recommended.append(yhat_model_name)
 
-        # predict best model
-        yhat_model_name = int(metas.predict(mfe_feats)[0])
-        m_recommended.append(yhat_model_name)
+    # metastrem score vs default score
+    for model in models:
+        model.fit(xtrain, ytrain)
+    preds = [model.predict(xsel) for model in models]
+    scores = [eval_metric(ysel, pred) for pred in preds]
+    max_score = np.argmax(scores)
 
-        # metastrem score vs default score
-        score1 = eval_metric(ysel, metas._learners[yhat_model_name].fit(xtrain, ytrain).predict(xsel))
-        score_recommended.append(score1)
-        if default != yhat_model_name:
-            score2 = eval_metric(ysel, metas._learners[default].fit(xtrain, ytrain).predict(xsel))
-        else:
-            score2 = score1
-        score_default.append(score2)
+    pbar.set_description("Accuracy meta: {}".format(scores[yhat_model_name]))
+    score_recommended.append(scores[yhat_model_name])
+    score_default.append(scores[default])
 
-        metas.base_fit(xtrain, ytrain)
-        preds = metas.base_predict(xsel)
-        scores = [eval_metric(ysel, pred) for pred in preds]
-        max_score = np.argmax(scores)
-
-        metadata = np.append(metadata, mfe_feats, axis=0)
-        metay.append([max_score])
-        count += 1
-        if count % batch == 0:
-            metas._metalearner.partial_fit(metadata[-batch:], metay[-batch:])
-
-        m_best.append(max_score)
-
-
-# In[ ]:
+    metadata = np.append(metadata, mfe_feats, axis=0)
+    metay.append(max_score)
+    count += 1
+    if count % batch == 0:
+        metas = lgb.train(lgb_params,
+                          init_model=metas,
+                          train_set=lgb.Dataset(metadata[-batch:],
+                                                metay[-batch:]))
+    m_best.append(max_score)
 
 
 print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
@@ -182,91 +187,7 @@ print(classification_report(m_best, m_recommended))
 print(classification_report_imbalanced(m_best, m_recommended))
 
 
-# In[ ]:
-
-
-plt.hist(score_default, alpha=.5)
-plt.hist(score_recommended, alpha=.5)
-plt.ylabel('Count')
-print("Mean score Default {:.2f}+-{:.2f}".format(np.mean(score_default), np.std(score_default)))
-print("Mean score Recommended {:.2f}+-{:.2f}".format(np.mean(score_recommended), np.std(score_recommended)))
-
-
-# In[ ]:
-
-
-plt.scatter(score_default, score_recommended, alpha=.25)
-plt.xlabel('Default')
-plt.ylabel('Recommended');
-
-
-# In[ ]:
-
-
-timedf = pd.DataFrame(metadata)
-
-
-# In[ ]:
-
-
-timedf.head()
-
-
-# In[ ]:
-
-
-window_score = min(500, small_data)
-for i in range(21):
-    fig, ax1 = plt.subplots(figsize=(15,2))
-    ax1.plot(score_default[-window_score:], color='C0')
-    ax1.set_ylabel("Score", color='C0')
-    ax1.set_xlabel("Pseudo-time")
-    ax2 = ax1.twinx()
-    ax2.plot(timedf[i].values[-window_score:], color='C1')
-    ax2.set_ylabel("Metafeature {}".format(i), color='C1')
-    plt.title("Score variation from default algorithm compared to metafeature");
-
-
-# In[ ]:
-
-
-fig, ax1 = plt.subplots(figsize=(15,2))
-ax1.plot(score_recommended[-window_score:])
-ax1.set_ylabel("Score")
-ax1.set_xlabel("Pseudo-time")
-plt.title("Score over time");
-
-
-# In[ ]:
-
-
-N = 10
-moving_aves = np.convolve(score_recommended[-window_score:], np.ones((N,))/N, mode='valid')
-
-
-# In[ ]:
-
-
-fig, ax1 = plt.subplots(figsize=(15,2))
-ax1.plot(moving_aves)
-ax1.set_ylabel("Score")
-ax1.set_xlabel("Pseudo-time")
-plt.title("Moving average over time");
-
-
-# In[ ]:
-
-
-window_score = min(500, small_data)
-N = 10
-moving_avg = np.convolve(score_default[-window_score:], np.ones((N,))/N, mode='valid')
-for i in range(21):
-    fig, ax1 = plt.subplots(figsize=(15,2))
-    ax1.plot(moving_avg, color='C0')
-    ax1.set_ylabel("Score", color='C0')
-    ax1.set_xlabel("Pseudo-time")
-    ax2 = ax1.twinx()
-    ax2.plot(timedf[i].values[-window_score:], color='C1')
-    ax2.set_ylabel("Metafeature {}".format(i), color='C1')
-    plt.title("Score variation from default algorithm compared to metafeature");
-
+print("Mean score Default {:.2f}+-{:.2f}".format(np.mean(score_default),
+                                                 np.std(score_default)))
+print("Mean score Recommended {:.2f}+-{:.2f}".\
+      format(np.mean(score_recommended), np.std(score_recommended)))
