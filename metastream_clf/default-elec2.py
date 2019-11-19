@@ -65,7 +65,7 @@ params = [
 models = [
     SVC(),
     RandomForestClassifier(random_state=42),
-    LogisticRegression()
+    LogisticRegression(solver='lbfgs')
 ]
 
 omega = args.omega
@@ -86,7 +86,8 @@ for model, param in tqdm(zip(models, params), total=len(models)):
     rscv.fit(Xcv, ycv)
     model.set_params(**rscv.best_params_)
 
-mfe = MFE()
+sup_mfe = MFE(groups=['statistical', 'complexity'], random_state=42)
+unsup_mfe = MFE(groups=['statistical'], random_state=42)
 for idx in tqdm(range(initial_data)):
     train = df.iloc[idx * gamma:idx * gamma + omega]
     sel = df.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
@@ -96,7 +97,10 @@ for idx in tqdm(range(initial_data)):
 
     mfe.fit(xtrain.values, ytrain.values)
     ft = mfe.extract()
-    mfe_feats = dict(zip(*ft))
+    sup_feats = dict((f'sup_{k}', v) for k,v in zip(*ft))
+    mfe.fit(xsel.values)
+    ft = mfe.extract()
+    unsup_feats = dict((f'unsup_{k}', v) for k,v in zip(*ft))
 
     for model in models:
         model.fit(xtrain, ytrain)
