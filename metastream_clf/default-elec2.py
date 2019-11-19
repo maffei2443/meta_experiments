@@ -43,7 +43,7 @@ lgb_params = {
         'objective': 'multiclass',
         'learning_rate': 0.01,
         'num_leaves': 35,
-        'metric': 'auc',
+        'metric': 'multi_error',
         'num_class': 3,
         'is_unbalance': True,
         'seed': 42,
