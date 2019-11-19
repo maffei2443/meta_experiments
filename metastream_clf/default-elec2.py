@@ -41,11 +41,9 @@ metrics = {
 lgb_params = {
         'boosting_type': 'gbdt',
         'learning_rate': 0.01,
-        'objective': 'binary',
-        'metric': 'auc',
-        # 'metric': 'multi_error',
-        # 'objective': 'multiclass',
-        # 'num_class': 3,
+        'metric': 'multi_error',
+        'objective': 'multiclass',
+        'num_class': 3,
         'is_unbalance': True,
         'seed': 42,
         'verbosity': -1,
@@ -59,11 +57,16 @@ params = [
          "max_features": stats.randint(1, 9),
          "min_samples_split": stats.randint(2, 11),
          "bootstrap": [True, False],
-         "criterion": ["gini", "entropy"]}]
+         "criterion": ["gini", "entropy"]},
+        {"penalty": ['l1', 'l2', 'elasticnet'],
+         "C": [0.1, 1, 10, 100]}
+]
 
 models = [
-        SVC(),
-        RandomForestClassifier(random_state=42)]
+    SVC(),
+    RandomForestClassifier(random_state=42),
+    LogisticRegression()
+]
 
 omega = args.omega
 gamma = args.gamma
