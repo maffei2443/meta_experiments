@@ -40,11 +40,12 @@ metrics = {
 
 lgb_params = {
         'boosting_type': 'gbdt',
-        'objective': 'multiclass',
         'learning_rate': 0.01,
-        'num_leaves': 35,
-        'metric': 'multi_error',
-        'num_class': 3,
+        'objective': binary,
+        'metric': 'auc',
+        # 'metric': 'multi_error',
+        # 'objective': 'multiclass',
+        # 'num_class': 3,
         'is_unbalance': True,
         'seed': 42,
         'verbosity': -1,
@@ -58,13 +59,11 @@ params = [
          "max_features": stats.randint(1, 9),
          "min_samples_split": stats.randint(2, 11),
          "bootstrap": [True, False],
-         "criterion": ["gini", "entropy"]},
-        {}]
+         "criterion": ["gini", "entropy"]}]
 
 models = [
         SVC(),
-        RandomForestClassifier(random_state=42),
-        GradientBoostingClassifier(random_state=42)]
+        RandomForestClassifier(random_state=42)]
 
 omega = args.omega
 gamma = args.gamma
