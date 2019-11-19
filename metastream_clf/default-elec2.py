@@ -41,7 +41,7 @@ metrics = {
 lgb_params = {
         'boosting_type': 'gbdt',
         'learning_rate': 0.01,
-        'objective': binary,
+        'objective': 'binary',
         'metric': 'auc',
         # 'metric': 'multi_error',
         # 'objective': 'multiclass',
