@@ -53,6 +53,7 @@ params = [
         {"C": [1,10,100],
          "kernel": ["rbf", "linear", "poly", "sigmoid"]},
         {"max_depth": [3, None],
+         "n_estimators": [100, 200, 300, 500],
          "max_features": stats.randint(1, 9),
          "min_samples_split": stats.randint(2, 11),
          "bootstrap": [True, False],
@@ -61,7 +62,7 @@ params = [
 
 models = [
         SVC(),
-        RandomForestClassifier(random_state=42),
+        RandomForestClassifier(n_estimators=100, random_state=42),
         GradientBoostingClassifier(random_state=42)]
 
 omega = args.omega
