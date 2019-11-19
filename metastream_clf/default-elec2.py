@@ -120,7 +120,7 @@ mxtrain, mxtest, mytrain, mytest =\
 
 metas = lgb.train(lgb_params, train_set=lgb.Dataset(mxtrain, mytrain))
 
-myhattest = (metas.predict(mxtest) >= .5).astype(int)
+myhattest = np.argmax(metas.predict(mxtest), axis=1)
 print("Kappa: ", cohen_kappa_score(mytest, myhattest))
 print("GMean: ", geometric_mean_score(mytest, myhattest))
 print("Accuracy: ", accuracy_score(mytest, myhattest))
@@ -157,7 +157,7 @@ for idx in pbar:
                   missing_columns]]
 
     # predict best model
-    yhat_model_name = int(metas.predict(mfe_feats)[0]>=.5)
+    yhat_model_name = np.argmax(metas.predict(mfe_feats))
     m_recommended.append(yhat_model_name)
 
     # metastrem score vs default score
