@@ -28,7 +28,7 @@ parser.add_argument('--gamma', type=int, help='selection window size.')
 parser.add_argument('--initial', type=int, help='initial data.')
 parser.add_argument('--target', help='target label.')
 parser.add_argument('--eval_metric', help='eval metric for metastream.')
-parser.add_argument('--metay', help='')
+parser.add_argument('--metay', help='metay label.', default='clf')
 
 args = parser.parse_args()
 
@@ -37,15 +37,14 @@ metadf = []
 metrics = {
     'acc': accuracy_score
 }
-metay_label = 'clf'
 
 lgb_params = {
         'boosting_type': 'gbdt',
-        'objective': 'binary',
+        'objective': 'multiclass',
         'learning_rate': 0.01,
         'num_leaves': 35,
         'metric': 'auc',
-        'is_unbalance': False,
+        'is_unbalance': True,
         'seed': 42,
         'verbosity': -1,
     }
@@ -70,6 +69,7 @@ gamma = args.gamma
 initial_data = args.initial
 target = args.target
 eval_metric = metrics[args.eval_metric]
+metay_label = args.metay
 
 df = pd.read_csv('../data/elec2/eletricity.csv')
 
