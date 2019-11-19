@@ -130,6 +130,7 @@ print(classification_report_imbalanced(mytest, myhattest))
 default = metadf[metay_label].value_counts().argmax() # major class in training dataset
 metadata = np.empty((0,metadf.shape[1]-1), np.float32)
 metay = []
+right = 0
 count = 0
 batch = 20
 
@@ -166,13 +167,15 @@ for idx in pbar:
     scores = [eval_metric(ysel, pred) for pred in preds]
     max_score = np.argmax(scores)
 
-    pbar.set_description("Accuracy meta: {}".format(scores[yhat_model_name]))
     score_recommended.append(scores[yhat_model_name])
     score_default.append(scores[default])
 
     metadata = np.append(metadata, mfe_feats, axis=0)
     metay.append(max_score)
     count += 1
+    if yhat_model_name == max_score:
+        right += 1
+    pbar.set_description("Accuracy meta: {}".format(right/count))
     if count % batch == 0:
         metas = lgb.train(lgb_params,
                           init_model=metas,
