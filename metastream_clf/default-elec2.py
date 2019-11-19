@@ -44,6 +44,7 @@ lgb_params = {
         'learning_rate': 0.01,
         'num_leaves': 35,
         'metric': 'auc',
+        'num_class': 3,
         'is_unbalance': True,
         'seed': 42,
         'verbosity': -1,
@@ -62,7 +63,7 @@ params = [
 
 models = [
         SVC(),
-        RandomForestClassifier(n_estimators=100, random_state=42),
+        RandomForestClassifier(random_state=42),
         GradientBoostingClassifier(random_state=42)]
 
 omega = args.omega
