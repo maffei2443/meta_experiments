@@ -178,7 +178,7 @@ for idx in pbar:
     count += 1
     if yhat_model_name == max_score:
         right += 1
-    pbar.set_description("Accuracy meta: {}".format(right/count))
+    pbar.set_description("Accuracy meta: {:.2f}".format(right/count))
     if count % batch == 0:
         metas = lgb.train(lgb_params,
                           init_model=metas,
