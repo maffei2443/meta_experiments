@@ -58,7 +58,7 @@ params = [
          "min_samples_split": stats.randint(2, 11),
          "bootstrap": [True, False],
          "criterion": ["gini", "entropy"]},
-        {"penalty": ['l1', 'l2', 'elasticnet'],
+        {"penalty": ['l1', 'l2'],
          "C": [0.1, 1, 10, 100]}
 ]
 
