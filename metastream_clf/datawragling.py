@@ -15,4 +15,4 @@ print(df.tail())
 df.dropna(inplace=True)
 print("Dataframe shape {}".format(df.shape))
 
-df.to_csv(path + 'eletricity.csv', index=False)
+df.to_csv(path + 'electricity.csv', index=False)

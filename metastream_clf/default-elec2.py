@@ -75,7 +75,7 @@ target = args.target
 eval_metric = metrics[args.eval_metric]
 metay_label = args.metay
 
-df = pd.read_csv('../data/elec2/eletricity.csv')
+df = pd.read_csv('../data/elec2/electricity.csv')
 
 datasize = omega * initial_data // gamma - 1 # initial base data
 Xcv, ycv = df.loc[:datasize].drop([target], axis=1), df.loc[:datasize, target]
