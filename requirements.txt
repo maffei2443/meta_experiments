@@ -1,7 +1,6 @@
 pandas
 matplotlib
 scikit-learn
-jupyter
 imblearn
 tqdm
 git+https://github.com/ealcobaca/pymfe.git@complexity
