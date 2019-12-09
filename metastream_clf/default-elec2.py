@@ -58,14 +58,14 @@ params = [
          "min_samples_split": stats.randint(2, 11),
          "bootstrap": [True, False],
          "criterion": ["gini", "entropy"]},
-        {"penalty": ['l1', 'l2'],
+        {
          "C": [0.1, 1, 10, 100]}
 ]
 
 models = [
     SVC(),
     RandomForestClassifier(random_state=42),
-    LogisticRegression(solver='lbfgs')
+    LogisticRegression()
 ]
 
 omega = args.omega
@@ -95,12 +95,15 @@ for idx in tqdm(range(initial_data)):
     xtrain, ytrain = train.drop(target, axis=1), train[target]
     xsel, ysel = sel.drop(target, axis=1), sel[target]
 
-    mfe.fit(xtrain.values, ytrain.values)
-    ft = mfe.extract()
+    sup_mfe.fit(xtrain.values, ytrain.values)
+    ft = sup_mfe.extract()
     sup_feats = dict((f'sup_{k}', v) for k,v in zip(*ft))
-    mfe.fit(xsel.values)
-    ft = mfe.extract()
+    unsup_mfe.fit(xsel.values)
+    ft = unsup_mfe.extract()
     unsup_feats = dict((f'unsup_{k}', v) for k,v in zip(*ft))
+
+    sup_mfe.update(unsup_mfe)
+    mfe_feats = sup_mfe
 
     for model in models:
         model.fit(xtrain, ytrain)
@@ -113,7 +116,7 @@ for idx in tqdm(range(initial_data)):
 
 
 metadf = pd.DataFrame(metadf)
-metadf.to_csv('../data/elec2/meta.csv', index=False)
+metadf.to_csv('data/elec2/meta.csv', index=False)
 
 
 missing_columns = metadf.columns[metadf.isnull().any()].values
