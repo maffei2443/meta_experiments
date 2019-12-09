@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 
-path = '../data/elec2/'
+path = 'data/elec2/'
 url = 'https://www.openml.org/data/get_csv/2419/electricity-normalized.arff'
 
 os.makedirs(path, mode=0o777, exist_ok=True)
