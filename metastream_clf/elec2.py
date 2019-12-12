@@ -35,7 +35,38 @@ parser.add_argument('--metay', help='metay label.', default='clf')
 
 args = parser.parse_args()
 metay_label = 'best_classifier'
-
+models = [
+    SVC(gamma='scale'),
+    RandomForestClassifier(random_state=42),
+    GaussianNB()
+]
+lgb_params = {
+    'boosting_type': 'dart',
+    'learning_rate': 0.01,
+    'tree_learner': 'feature',
+    'metric': 'multi_error,multi_logloss',
+    'objective': 'multiclassova',
+    'num_class': len(models),
+    # 'metric': 'binary_error,binary_logloss',
+    # 'objective': 'binary',
+    'is_unbalance': True,
+    'seed': 42
+}
+metrics = {
+    'acc': accuracy_score
+}
+params = [
+    {"C": [1,10,100],
+    "kernel": ["rbf", "linear", "poly", "sigmoid"]},
+    {"max_depth": [3, None],
+    "n_estimators": [100, 200, 300, 500],
+    "max_features": stats.randint(1, 9),
+    "min_samples_split": stats.randint(2, 11),
+    "bootstrap": [True, False],
+    "criterion": ["gini", "entropy"]},
+    {}
+]
+    
 def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
     datasize = omega * initial // gamma - 1 # initial base data
     Xcv, ycv = data.loc[:datasize].drop([target], axis=1),\
@@ -47,79 +78,47 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
-def base_train(data, start, stop, gamma, omega, models, target, eval_metric):
-    eval_metric = metrics[eval_metric]
-    metadf = []
-    sup_mfe = MFE(groups=['statistical', 'complexity'], random_state=42)
-    # unsup_mfe = MFE(groups=['statistical'], random_state=42)
-    for idx in tqdm(range(start, stop)):
-        train = data.iloc[idx * gamma:idx * gamma + omega]
-        sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
+def base_train(data, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
+    train = data.iloc[idx * gamma:idx * gamma + omega]
+    sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 
-        xtrain, ytrain = train.drop(target, axis=1), train[target]
-        xsel, ysel = sel.drop(target, axis=1), sel[target]
+    xtrain, ytrain = train.drop(target, axis=1), train[target]
+    xsel, ysel = sel.drop(target, axis=1), sel[target]
 
-        sup_mfe.fit(xtrain.values, ytrain.values)
-        ft = sup_mfe.extract()
-        sup_feats = {'sup_{}'.format(k):v for k,v in zip(*ft)}
-        # unsup_mfe.fit(xsel.values)
-        # ft = unsup_mfe.extract()
-        # unsup_feats = dict(('unsup_{}'.format(k), v) for k,v in zip(*ft))
+    sup_mfe.fit(xtrain.values, ytrain.values)
+    ft = sup_mfe.extract()
+    sup_feats = {'sup_{}'.format(k):v for k,v in zip(*ft)}
+    # unsup_mfe.fit(xsel.values)
+    # ft = unsup_mfe.extract()
+    # unsup_feats = {'unsup_{}'.format(k):v for k,v in zip(*ft)}
 
-        # sup_feats.update(unsup_feats)
-        mfe_feats = sup_feats
+    # sup_feats.update(unsup_feats)
+    mfe_feats = sup_feats
 
-        for model in models:
-            model.fit(xtrain, ytrain)
-        preds = [model.predict(xsel) for model in models]
-        scores = [eval_metric(ysel, pred) for pred in preds]
-        max_score = np.argmax(scores)
-        mfe_feats[metay_label] = max_score
+    for model in models:
+        model.fit(xtrain, ytrain)
+    preds = [model.predict(xsel) for model in models]
+    scores = [metrics[eval_metric](ysel, pred) for pred in preds]
+    max_score = np.argmax(scores)
+    mfe_feats[metay_label] = max_score
 
-        metadf.append(mfe_feats)
-
-    return pd.DataFrame(metadf)
+    return mfe_feats
 
 if __name__ == "__main__":
-    ### SPECIFY PARAMETERS FOR BASE AND META MODELS
-    models = [
-        SVC(gamma='scale'),
-        RandomForestClassifier(random_state=42)
-    ]
-    metrics = {
-        'acc': accuracy_score
-    }
-    params = [
-            {"C": [1,10,100],
-             "kernel": ["rbf", "linear", "poly", "sigmoid"]},
-            {"max_depth": [3, None],
-             "n_estimators": [100, 200, 300, 500],
-             "max_features": stats.randint(1, 9),
-             "min_samples_split": stats.randint(2, 11),
-             "bootstrap": [True, False],
-             "criterion": ["gini", "entropy"]},
-    ]
-    lgb_params = {
-        'boosting_type': 'dart',
-        'learning_rate': 0.01,
-        'tree_learner': 'feature',
-        'metric': 'multi_error,multi_logloss',
-        'objective': 'multiclass',
-        'num_class': 3,
-        # 'metric': 'binary_error,binary_logloss',
-        # 'objective': 'binary',
-        'is_unbalance': True,
-        'seed': 42
-    }
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
     df = pd.read_csv('data/elec2/electricity.csv')
 
-    fine_tune(df, args.initial, args.gamma, args.omega, models, params,
-              args.target, args.eval_metric)
+    # fine_tune(df, args.initial, args.gamma, args.omega, models, params,
+           # args.target, args.eval_metric)
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
-    base_data = base_train(df, 0, args.initial, args.gamma, args.omega,
-                           models, args.target, args.eval_metric)
-    base_data.to_csv('data/elec2/metabase.csv', index=False)
+    # metadf = []
+    # sup_mfe = MFE(groups=['statistical', 'complexity'], random_state=42)
+    # unsup_mfe = MFE(groups=['statistical'], random_state=42)
+    # for idx in tqdm(range(0, args.initial)):
+    #     metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma, args.omega,
+    #      models, args.target, args.eval_metric))
+    # base_data = pd.DataFrame(metadf)
+    # base_data.to_csv('data/elec2/metabase.csv', index=False)
     base_data = pd.read_csv('data/elec2/metabase.csv')
 
     ### DROP MISSING DATA AND TRAIN METAMODEL
@@ -143,12 +142,14 @@ if __name__ == "__main__":
     print(classification_report_imbalanced(mytest, myhattest))
     exit()
 
-    ### ONLINE LEARN
+    ### ONLINE LEARNING
+    metadf = []
     small_data = 5000000
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
-
-    online_data = base_train(df, args.initial, until_data, args.gamma,
-                             args.omega, models, args.target, args.eval_metric)
+    for idx in tqdm(range(args.initial, until_data)):
+        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma, args.omega,
+                                     models, args.target, args.eval_metric))
+    online_data = pd.DataFrame(metadf)
     online_data.to_csv('data/elec2/metaonline.csv', index=False)
     print(online_data.head())

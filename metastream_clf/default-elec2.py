@@ -39,15 +39,15 @@ metrics = {
 }
 
 lgb_params = {
-        'boosting_type': 'gbdt',
-        'learning_rate': 0.01,
-        'metric': 'multi_error',
-        'objective': 'multiclass',
-        'num_class': 3,
-        'is_unbalance': True,
-        'seed': 42,
-        'verbosity': -1,
-    }
+    'boosting_type': 'gbdt',
+    'learning_rate': 0.01,
+    'metric': 'multi_error',
+    'objective': 'multiclass',
+    'num_class': 3,
+    'is_unbalance': True,
+    'seed': 42,
+    'verbosity': -1,
+}
 
 params = [
         {"C": [1,10,100],
