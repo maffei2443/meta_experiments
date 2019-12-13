@@ -18,7 +18,7 @@ from sklearn.tree import DecisionTreeClassifier, ExtraTreeClassifier
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.metrics import cohen_kappa_score, mean_squared_error, classification_report, accuracy_score, make_scorer
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
 from imblearn.metrics import geometric_mean_score, classification_report_imbalanced
 
 import lightgbm as lgb
@@ -50,6 +50,7 @@ lgb_params = {
     # 'metric': 'binary_error,binary_logloss',
     # 'objective': 'binary',
     'is_unbalance': True,
+    'verbose': -1,
     'seed': 42
 }
 metrics = {
@@ -66,15 +67,16 @@ params = [
     "criterion": ["gini", "entropy"]},
     {}
 ]
-    
+
 def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
     datasize = omega * initial // gamma - 1 # initial base data
     Xcv, ycv = data.loc[:datasize].drop([target], axis=1),\
         data.loc[:datasize, target]
 
     for model, param in tqdm(zip(models, params), total=len(models)):
-        rscv = RandomizedSearchCV(model, param, n_jobs=-1,
-                              scoring=make_scorer(metrics[eval_metric]))
+        rscv = RandomizedSearchCV(model, param, random_state=42,
+                                  scoring=make_scorer(metrics[eval_metric]),
+                                  cv = gamma, n_jobs=-1)
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
@@ -108,36 +110,40 @@ if __name__ == "__main__":
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
     df = pd.read_csv('data/elec2/electricity.csv')
 
-    # fine_tune(df, args.initial, args.gamma, args.omega, models, params,
-           # args.target, args.eval_metric)
+    fine_tune(df, args.initial, args.gamma, args.omega, models, params,
+              args.target, args.eval_metric)
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
-    # metadf = []
-    # sup_mfe = MFE(groups=['statistical', 'complexity'], random_state=42)
-    # unsup_mfe = MFE(groups=['statistical'], random_state=42)
-    # for idx in tqdm(range(0, args.initial)):
-    #     metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma, args.omega,
-    #      models, args.target, args.eval_metric))
-    # base_data = pd.DataFrame(metadf)
-    # base_data.to_csv('data/elec2/metabase.csv', index=False)
+    metadf = []
+    sup_mfe = MFE(random_state=42)
+    unsup_mfe = MFE(groups=['statistical'], random_state=42)
+    for idx in tqdm(range(0, args.initial)):
+        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
+                                 args.omega, models, args.target,
+                                 args.eval_metric))
+    base_data = pd.DataFrame(metadf)
+    base_data.to_csv('data/elec2/metabase.csv', index=False)
     base_data = pd.read_csv('data/elec2/metabase.csv')
 
     ### DROP MISSING DATA AND TRAIN METAMODEL
     missing_columns = base_data.columns[base_data.isnull().any()].values
     base_data.drop(columns=missing_columns, inplace=True)
 
-    mxtrain, mxtest, mytrain, mytest =\
-        train_test_split(base_data.drop(metay_label, axis=1),
-                         base_data[metay_label], random_state=42)
+    mX, mY = base_data.drop(metay_label, axis=1).values,\
+        base_data[metay_label].values
+    loo = LeaveOneOut()
 
-    metas = lgb.train(lgb_params, train_set=lgb.Dataset(mxtrain, mytrain),
-                      valid_sets=lgb.Dataset(mxtest, mytest),
-                      num_boost_round=500,
-                      early_stopping_rounds=10)
+    myhattest = []
+    mytest = []
+    for train_idx, test_idx in tqdm(loo.split(mX),
+                                    total=args.initial):
+        metas = lgb.train(lgb_params,
+                      train_set=lgb.Dataset(mX[train_idx], mY[train_idx]))
+        myhattest.append(np.argmax(metas.predict(mX[test_idx]), axis=1)[0])
+        mytest.append(mY[test_idx][0])
 
-    myhattest = np.argmax(metas.predict(mxtest), axis=1)
-    print("Kappa: ", cohen_kappa_score(mytest, myhattest))
-    print("GMean: ", geometric_mean_score(mytest, myhattest))
-    print("Accuracy: ", accuracy_score(mytest, myhattest))
+    print("Kappa:    {:.2f}".format(cohen_kappa_score(mytest, myhattest)))
+    print("GMean:    {:.2f}".format(geometric_mean_score(mytest, myhattest)))
+    print("Accuracy: {:.2f}".format(accuracy_score(mytest, myhattest)))
     print(classification_report(mytest, myhattest))
     print(classification_report_imbalanced(mytest, myhattest))
     exit()
@@ -148,8 +154,9 @@ if __name__ == "__main__":
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
     for idx in tqdm(range(args.initial, until_data)):
-        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma, args.omega,
-                                     models, args.target, args.eval_metric))
+        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
+                                 args.omega, models, args.target,
+                                 args.eval_metric))
     online_data = pd.DataFrame(metadf)
     online_data.to_csv('data/elec2/metaonline.csv', index=False)
     print(online_data.head())
