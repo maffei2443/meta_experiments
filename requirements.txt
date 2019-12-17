@@ -3,5 +3,5 @@ matplotlib
 scikit-learn
 imblearn
 tqdm
-git+https://github.com/ealcobaca/pymfe.git@complexity
+git+https://github.com/ealcobaca/pymfe.git@complexity-revised
 lightgbm

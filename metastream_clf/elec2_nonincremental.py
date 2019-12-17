@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from joblib import dump, load
-import matplotlib.pyplot as plt
 
 from pymfe.mfe import MFE
 from tqdm import tqdm
@@ -15,7 +14,7 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
 from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
@@ -115,15 +114,15 @@ if __name__ == "__main__":
     # dump(models, 'data/elec2/models.joblib')
     models = load('data/elec2/models.joblib')
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
-    metadf = []
-    sup_mfe = MFE(groups=['complexity', 'statistical'], random_state=42)
-    unsup_mfe = MFE(groups=['statistical'], random_state=42)
-    for idx in tqdm(range(0, args.initial)):
-        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
-                                 args.omega, models, args.target,
-                                 args.eval_metric))
-    base_data = pd.DataFrame(metadf)
-    base_data.to_csv('data/elec2/metabase.csv', index=False)
+    # metadf = []
+    # sup_mfe = MFE(random_state=42)
+    # unsup_mfe = MFE(groups=['statistical'], random_state=42)
+    # for idx in tqdm(range(0, args.initial)):
+    #     metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
+    #                              args.omega, models, args.target,
+    #                              args.eval_metric))
+    # base_data = pd.DataFrame(metadf)
+    # base_data.to_csv('data/elec2/metabase.csv', index=False)
     base_data = pd.read_csv('data/elec2/metabase.csv')
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
@@ -138,23 +137,20 @@ if __name__ == "__main__":
         base_data[metay_label].values
     loo = LeaveOneOut()
 
+    rf = GradientBoostingClassifier(random_state=42)
     myhattest = []
     mytest = []
     for train_idx, test_idx in tqdm(loo.split(mX), total=args.initial):
-        metas = lgb.train(lgb_params, train_set=lgb.Dataset(mX[train_idx],
-                                                            mY[train_idx]))
-        myhattest.append(np.argmax(metas.predict(mX[test_idx]), axis=1)[0])
+        rf.fit(mX[train_idx], mY[train_idx])
+        myhattest.append(rf.predict(mX[test_idx])[0])
         mytest.append(mY[test_idx][0])
 
-    metas.save_model('data/elec2/metamodel.txt')
     print("Kappa:    {:.3f}".format(cohen_kappa_score(mytest, myhattest)))
     print("GMean:    {:.3f}".format(geometric_mean_score(mytest, myhattest)))
     print("Accuracy: {:.3f}".format(accuracy_score(mytest, myhattest)))
     print(confusion_matrix(mytest, myhattest))
     print(classification_report(mytest, myhattest))
     print(classification_report_imbalanced(mytest, myhattest))
-    lgb.plot_importance(metas)
-    plt.show()
     exit()
 
     ### ONLINE LEARNING
