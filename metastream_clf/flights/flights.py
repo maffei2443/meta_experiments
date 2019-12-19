@@ -58,7 +58,7 @@ metrics = {
 }
 params = [
     {"C": [1,10,100],
-    "kernel": ["rbf", "linear", "poly", "sigmoid"]},
+    "kernel": ["rbf", "poly"]},
     {"max_depth": [3, None],
     "n_estimators": [100, 200, 300, 500],
     "max_features": stats.randint(1, 9),
@@ -107,24 +107,25 @@ def base_train(data, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metr
     return mfe_feats
 
 if __name__ == "__main__":
+    path = 'data/flights/'
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
-    df = pd.read_csv('data/elec2/electricity.csv')
+    df = pd.read_csv(path +'data.csv')
 
-    # fine_tune(df, args.initial, args.gamma, args.omega, models, params,
-    #           args.target, args.eval_metric)
-    # dump(models, 'data/elec2/models.joblib')
-    models = load('data/elec2/models.joblib')
+    fine_tune(df, args.initial, args.gamma, args.omega, models, params,
+              args.target, args.eval_metric)
+    dump(models, path + 'models.joblib')
+    models = load(path + 'models.joblib')
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     metadf = []
-    sup_mfe = MFE(groups=['complexity', 'statistical'], random_state=42)
+    sup_mfe = MFE(random_state=42)
     unsup_mfe = MFE(groups=['statistical'], random_state=42)
     for idx in tqdm(range(0, args.initial)):
         metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
                                  args.omega, models, args.target,
                                  args.eval_metric))
     base_data = pd.DataFrame(metadf)
-    base_data.to_csv('data/elec2/metabase.csv', index=False)
-    base_data = pd.read_csv('data/elec2/metabase.csv')
+    base_data.to_csv(path + 'metabase.csv', index=False)
+    base_data = pd.read_csv(path + 'metabase.csv')
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
@@ -146,7 +147,7 @@ if __name__ == "__main__":
         myhattest.append(np.argmax(metas.predict(mX[test_idx]), axis=1)[0])
         mytest.append(mY[test_idx][0])
 
-    metas.save_model('data/elec2/metamodel.txt')
+    metas.save_model(path + 'metamodel.txt')
     print("Kappa:    {:.3f}".format(cohen_kappa_score(mytest, myhattest)))
     print("GMean:    {:.3f}".format(geometric_mean_score(mytest, myhattest)))
     print("Accuracy: {:.3f}".format(accuracy_score(mytest, myhattest)))
@@ -167,5 +168,5 @@ if __name__ == "__main__":
                                  args.omega, models, args.target,
                                  args.eval_metric))
     online_data = pd.DataFrame(metadf)
-    online_data.to_csv('data/elec2/metaonline.csv', index=False)
+    online_data.to_csv(path + 'metaonline.csv', index=False)
     print(online_data.head())
