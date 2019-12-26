@@ -9,11 +9,13 @@ path = 'data/flights/'
 
 os.makedirs(path, mode=0o777, exist_ok=True)
 
-flights = [pd.read_csv(url) for url in urls]
+flights = [pd.read_csv(url).query('Origin=="ORD" & Dest=="LGA"')\
+           for url in urls]
 df = pd.concat(flights, axis=0, ignore_index=True)[[
     'Year', 'Month', 'DayofMonth', 'DayOfWeek', 'CRSDepTime', 'CRSArrTime',
     'FlightNum', 'CRSElapsedTime', 'DepDelay'
 ]]
+
 df.sort_values('CRSDepTime', inplace=True)
 df.reset_index(drop=True, inplace=True)
 df['class'] = (df['DepDelay'] > 15).astype(int)

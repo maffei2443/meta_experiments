@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from joblib import dump, load
-import matplotlib.pyplot as plt
 
 from pymfe.mfe import MFE
 from tqdm import tqdm
@@ -15,7 +14,6 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
 from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
@@ -80,7 +78,7 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
-def base_train(data, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
+def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
     train = data.iloc[idx * gamma:idx * gamma + omega]
     sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 
@@ -101,14 +99,13 @@ def base_train(data, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metr
         model.fit(xtrain, ytrain)
     preds = [model.predict(xsel) for model in models]
     scores = [metrics[eval_metric](ysel, pred) for pred in preds]
-    max_score = np.argmax(scores)
-    mfe_feats[metay_label] = max_score
 
-    return mfe_feats
+    return mfe_feats, scores
 
 if __name__ == "__main__":
     path = 'data/flights/'
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
+    print("[FINETUNING BASE MODELS]")
     df = pd.read_csv(path +'data.csv')
 
     fine_tune(df, args.initial, args.gamma, args.omega, models, params,
@@ -116,22 +113,27 @@ if __name__ == "__main__":
     dump(models, path + 'models.joblib')
     models = load(path + 'models.joblib')
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
+    print("[GENERATE METAFEATURE]")
     metadf = []
     sup_mfe = MFE(random_state=42)
     unsup_mfe = MFE(groups=['statistical'], random_state=42)
     for idx in tqdm(range(0, args.initial)):
-        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
-                                 args.omega, models, args.target,
-                                 args.eval_metric))
+        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
+                                       args.omega, models, args.target,
+                                       args.eval_metric)
+        max_score = np.argmax(scores)
+        mfe_feats[metay_label] = max_score
+        metadf.append(mfe_feats)
     base_data = pd.DataFrame(metadf)
     base_data.to_csv(path + 'metabase.csv', index=False)
     base_data = pd.read_csv(path + 'metabase.csv')
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
-                                 count/args.initial))
+                                     count/args.initial))
 
     ### DROP MISSING DATA AND TRAIN METAMODEL
+    print("[OFFLINE LEARNING]")
     missing_columns = base_data.columns[base_data.isnull().any()].values
     base_data.drop(columns=missing_columns, inplace=True)
 
@@ -148,25 +150,60 @@ if __name__ == "__main__":
         mytest.append(mY[test_idx][0])
 
     metas.save_model(path + 'metamodel.txt')
+    metas = lgb.Booster(model_file=path + 'metamodel.txt')
     print("Kappa:    {:.3f}".format(cohen_kappa_score(mytest, myhattest)))
     print("GMean:    {:.3f}".format(geometric_mean_score(mytest, myhattest)))
     print("Accuracy: {:.3f}".format(accuracy_score(mytest, myhattest)))
     print(confusion_matrix(mytest, myhattest))
     print(classification_report(mytest, myhattest))
     print(classification_report_imbalanced(mytest, myhattest))
-    lgb.plot_importance(metas)
-    plt.show()
-    exit()
+    importance = metas.feature_importance()
+    fnames = metas.feature_name()
+    dump(importance, path + 'importance.joblib')
+    dump(fnames, path + 'fnames.joblib')
 
     ### ONLINE LEARNING
-    metadf = []
+    print("[ONLINE LEARNING]")
+    default = base_data[metay_label].value_counts().argmax()
+    metadf = np.empty((0, base_data.shape[1]-1), np.float32)
+    metay = []
+    counter = 0
+    batch = 32
+
+    m_recommended = []
+    m_best = []
+    m_diff = []
+
+    score_recommended = []
+    score_default = []
+
     small_data = 5000000
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
     for idx in tqdm(range(args.initial, until_data)):
-        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
-                                 args.omega, models, args.target,
-                                 args.eval_metric))
-    online_data = pd.DataFrame(metadf)
-    online_data.to_csv(path + 'metaonline.csv', index=False)
-    print(online_data.head())
+        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
+                                       args.omega, models, args.target,
+                                       args.eval_metric)
+        mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
+                     not in missing_columns]]
+        metadf = np.append(metadf, mfe_feats, axis=0)
+        max_score = np.argmax(scores)
+        recommended = np.argmax(metas.predict(mfe_feats))
+
+        m_recommended.append(recommended)
+        m_best.append(max_score)
+        m_diff.append(scores[recommended] - scores[default])
+
+        metay.append(max_score)
+        counter += 1
+        if counter % batch == 0:
+            metas = lgb.train(lgb_params, init_model=metas,
+                              train_set=lgb.Dataset(metadf[-batch:],
+                                                    metay[-batch:]))
+
+    dump(m_diff, path + 'difference.joblib')
+    print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
+    print("GMean: ", geometric_mean_score(m_best, m_recommended))
+    print("Accuracy: ", accuracy_score(m_best, m_recommended))
+    print(classification_report(m_best, m_recommended))
+    print(classification_report_imbalanced(m_best, m_recommended))
