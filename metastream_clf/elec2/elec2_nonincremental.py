@@ -14,7 +14,6 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
 from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
@@ -57,7 +56,7 @@ metrics = {
 }
 params = [
     {"C": [1,10,100],
-    "kernel": ["rbf", "linear", "poly", "sigmoid"]},
+    "kernel": ["rbf", "poly"]},
     {"max_depth": [3, None],
     "n_estimators": [100, 200, 300, 500],
     "max_features": stats.randint(1, 9),
@@ -79,7 +78,7 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
-def base_train(data, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
+def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
     train = data.iloc[idx * gamma:idx * gamma + omega]
     sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 
@@ -100,36 +99,41 @@ def base_train(data, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metr
         model.fit(xtrain, ytrain)
     preds = [model.predict(xsel) for model in models]
     scores = [metrics[eval_metric](ysel, pred) for pred in preds]
-    max_score = np.argmax(scores)
-    mfe_feats[metay_label] = max_score
 
-    return mfe_feats
+    return mfe_feats, scores
 
 if __name__ == "__main__":
+    path = 'data/elec2_inc/'
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
-    df = pd.read_csv('data/elec2/electricity.csv')
+    print("[FINETUNING BASE MODELS]")
+    df = pd.read_csv(path +'data.csv')
 
     # fine_tune(df, args.initial, args.gamma, args.omega, models, params,
     #           args.target, args.eval_metric)
-    # dump(models, 'data/elec2/models.joblib')
-    models = load('data/elec2/models.joblib')
+    # dump(models, path + 'models.joblib')
+    models = load(path + 'models.joblib')
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
-    # metadf = []
-    # sup_mfe = MFE(random_state=42)
-    # unsup_mfe = MFE(groups=['statistical'], random_state=42)
-    # for idx in tqdm(range(0, args.initial)):
-    #     metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
-    #                              args.omega, models, args.target,
-    #                              args.eval_metric))
-    # base_data = pd.DataFrame(metadf)
-    # base_data.to_csv('data/elec2/metabase.csv', index=False)
-    base_data = pd.read_csv('data/elec2/metabase.csv')
+    print("[GENERATE METAFEATURE]")
+    metadf = []
+    sup_mfe = MFE(groups=['statistical'], random_state=42)
+    unsup_mfe = MFE(groups=['statistical'], random_state=42)
+    for idx in tqdm(range(0, args.initial)):
+        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
+                                       args.omega, models, args.target,
+                                       args.eval_metric)
+        max_score = np.argmax(scores)
+        mfe_feats[metay_label] = max_score
+        metadf.append(mfe_feats)
+    base_data = pd.DataFrame(metadf)
+    base_data.to_csv(path + 'metabase.csv', index=False)
+    base_data = pd.read_csv(path + 'metabase.csv')
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
-                                 count/args.initial))
+                                     count/args.initial))
 
     ### DROP MISSING DATA AND TRAIN METAMODEL
+    print("[OFFLINE LEARNING]")
     missing_columns = base_data.columns[base_data.isnull().any()].values
     base_data.drop(columns=missing_columns, inplace=True)
 
@@ -137,7 +141,7 @@ if __name__ == "__main__":
         base_data[metay_label].values
     loo = LeaveOneOut()
 
-    rf = GradientBoostingClassifier(random_state=42)
+    rf = RandomForestClassifier(random_state=42)
     myhattest = []
     mytest = []
     for train_idx, test_idx in tqdm(loo.split(mX), total=args.initial):
@@ -145,23 +149,58 @@ if __name__ == "__main__":
         myhattest.append(rf.predict(mX[test_idx])[0])
         mytest.append(mY[test_idx][0])
 
+    dump(rf, path + 'rf.joblib')
+    rf = load(path + 'rf.joblib')
     print("Kappa:    {:.3f}".format(cohen_kappa_score(mytest, myhattest)))
     print("GMean:    {:.3f}".format(geometric_mean_score(mytest, myhattest)))
     print("Accuracy: {:.3f}".format(accuracy_score(mytest, myhattest)))
     print(confusion_matrix(mytest, myhattest))
     print(classification_report(mytest, myhattest))
     print(classification_report_imbalanced(mytest, myhattest))
-    exit()
+    importance = rf.feature_importances_
+    dump(importance, path + 'importance.joblib')
 
     ### ONLINE LEARNING
-    metadf = []
+    print("[ONLINE LEARNING]")
+    default = base_data[metay_label].value_counts().argmax()
+    metadf = base_data
+    count = 0
+
+    m_recommended = []
+    m_best = []
+    m_diff = []
+
+    score_recommended = []
+    score_default = []
+
     small_data = 5000000
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
     for idx in tqdm(range(args.initial, until_data)):
-        metadf.append(base_train(df, sup_mfe, unsup_mfe, args.gamma,
-                                 args.omega, models, args.target,
-                                 args.eval_metric))
-    online_data = pd.DataFrame(metadf)
-    online_data.to_csv('data/elec2/metaonline.csv', index=False)
-    print(online_data.head())
+        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
+                                       args.omega, models, args.target,
+                                       args.eval_metric)
+        mfe_feats = {k:mfe_feats[k] for k in mfe_feats if k\
+                     not in missing_columns}
+        metadf = metadf.append(mfe_feats, ignore_index=True)
+        max_score = np.argmax(scores)
+        metadf.iloc[-1, metadf.columns.get_loc(metay_label)] = max_score
+        recommended = np.argmax(rf.predict(metadf.iloc[-1].drop(metay_label)\
+                                           .values.reshape(1, -1)))
+
+        m_recommended.append(recommended)
+        m_best.append(max_score)
+        m_diff.append(scores[recommended] - scores[default])
+        count += 1
+        if count % args.gamma == 0:
+            # print(metadf.iloc[-args.initial:].drop(metay_label, axis=1),
+            #        metadf.iloc[-args.initial:][metay_label].values)
+            rf.fit(metadf.iloc[-args.initial:].drop(metay_label, axis=1),
+                   metadf.iloc[-args.initial:][metay_label].values)
+
+    dump(m_diff, path + 'difference.joblib')
+    print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
+    print("GMean: ", geometric_mean_score(m_best, m_recommended))
+    print("Accuracy: ", accuracy_score(m_best, m_recommended))
+    print(classification_report(m_best, m_recommended))
+    print(classification_report_imbalanced(m_best, m_recommended))
