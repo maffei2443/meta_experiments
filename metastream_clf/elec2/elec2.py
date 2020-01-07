@@ -158,7 +158,7 @@ if __name__ == "__main__":
     print(classification_report(mytest, myhattest))
     print(classification_report_imbalanced(mytest, myhattest))
     importance = metas.feature_importance()
-    fnames = metas.feature_name()
+    fnames = base_data.columns
     dump(importance, path + 'importance.joblib')
     dump(fnames, path + 'fnames.joblib')
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
         metay.append(max_score)
         counter += 1
-        if counter % batch == 0:
+        if counter % args.gamma == 0:
             metas = lgb.train(lgb_params, init_model=metas,
                               train_set=lgb.Dataset(metadf[-batch:],
                                                     metay[-batch:]))

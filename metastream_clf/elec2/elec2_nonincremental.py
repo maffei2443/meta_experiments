@@ -108,14 +108,14 @@ if __name__ == "__main__":
     print("[FINETUNING BASE MODELS]")
     df = pd.read_csv(path +'data.csv')
 
-    # fine_tune(df, args.initial, args.gamma, args.omega, models, params,
-    #           args.target, args.eval_metric)
-    # dump(models, path + 'models.joblib')
+    fine_tune(df, args.initial, args.gamma, args.omega, models, params,
+              args.target, args.eval_metric)
+    dump(models, path + 'models.joblib')
     models = load(path + 'models.joblib')
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
-    sup_mfe = MFE(groups=['statistical'], random_state=42)
+    sup_mfe = MFE(random_state=42)
     unsup_mfe = MFE(groups=['statistical'], random_state=42)
     for idx in tqdm(range(0, args.initial)):
         mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
@@ -141,30 +141,34 @@ if __name__ == "__main__":
         base_data[metay_label].values
     loo = LeaveOneOut()
 
-    rf = RandomForestClassifier(random_state=42)
     myhattest = []
     mytest = []
     for train_idx, test_idx in tqdm(loo.split(mX), total=args.initial):
-        rf.fit(mX[train_idx], mY[train_idx])
-        myhattest.append(rf.predict(mX[test_idx])[0])
+        metas = lgb.train(lgb_params, train_set=lgb.Dataset(mX[train_idx],
+                                                            mY[train_idx]))
+        myhattest.append(np.argmax(metas.predict(mX[test_idx]), axis=1)[0])
         mytest.append(mY[test_idx][0])
 
-    dump(rf, path + 'rf.joblib')
-    rf = load(path + 'rf.joblib')
+    metas.save_model(path + 'metamodel.txt')
+    metas = lgb.Booster(model_file=path + 'metamodel.txt')
     print("Kappa:    {:.3f}".format(cohen_kappa_score(mytest, myhattest)))
     print("GMean:    {:.3f}".format(geometric_mean_score(mytest, myhattest)))
     print("Accuracy: {:.3f}".format(accuracy_score(mytest, myhattest)))
     print(confusion_matrix(mytest, myhattest))
     print(classification_report(mytest, myhattest))
     print(classification_report_imbalanced(mytest, myhattest))
-    importance = rf.feature_importances_
+    importance = metas.feature_importance()
+    fnames = base_data.columns
     dump(importance, path + 'importance.joblib')
+    dump(fnames, path + 'fnames.joblib')
 
     ### ONLINE LEARNING
     print("[ONLINE LEARNING]")
     default = base_data[metay_label].value_counts().argmax()
-    metadf = base_data
-    count = 0
+    metadf = np.empty((0, base_data.shape[1]-1), np.float32)
+    metay = []
+    counter = 0
+    batch = 32
 
     m_recommended = []
     m_best = []
@@ -180,23 +184,22 @@ if __name__ == "__main__":
         mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
                                        args.omega, models, args.target,
                                        args.eval_metric)
-        mfe_feats = {k:mfe_feats[k] for k in mfe_feats if k\
-                     not in missing_columns}
-        metadf = metadf.append(mfe_feats, ignore_index=True)
+        mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
+                     not in missing_columns]]
+        metadf = np.append(metadf, mfe_feats, axis=0)
         max_score = np.argmax(scores)
-        metadf.iloc[-1, metadf.columns.get_loc(metay_label)] = max_score
-        recommended = np.argmax(rf.predict(metadf.iloc[-1].drop(metay_label)\
-                                           .values.reshape(1, -1)))
+        recommended = np.argmax(metas.predict(mfe_feats))
 
         m_recommended.append(recommended)
         m_best.append(max_score)
         m_diff.append(scores[recommended] - scores[default])
-        count += 1
-        if count % args.gamma == 0:
-            # print(metadf.iloc[-args.initial:].drop(metay_label, axis=1),
-            #        metadf.iloc[-args.initial:][metay_label].values)
-            rf.fit(metadf.iloc[-args.initial:].drop(metay_label, axis=1),
-                   metadf.iloc[-args.initial:][metay_label].values)
+
+        metay.append(max_score)
+        counter += 1
+        if counter % args.gamma == 0:
+            metas = lgb.train(lgb_params,
+                              train_set=lgb.Dataset(metadf[-batch:],
+                                                    metay[-batch:]))
 
     dump(m_diff, path + 'difference.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
