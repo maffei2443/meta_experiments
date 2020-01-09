@@ -1,1 +1,53 @@
 [FINETUNING BASE MODELS]
+[GENERATE METAFEATURE]
+Frequency statistics in metabase:
+	SVC                      0.530
+	RandomForestClassifier   0.400
+	GaussianNB               0.070
+[OFFLINE LEARNING]
+Kappa:    0.029
+GMean:    0.000
+Accuracy: 0.493
+[[105  53   1]
+ [ 74  43   3]
+ [ 12   9   0]]
+              precision    recall  f1-score   support
+
+           0       0.55      0.66      0.60       159
+           1       0.41      0.36      0.38       120
+           2       0.00      0.00      0.00        21
+
+    accuracy                           0.49       300
+   macro avg       0.32      0.34      0.33       300
+weighted avg       0.46      0.49      0.47       300
+
+                   pre       rec       spe        f1       geo       iba       sup
+
+          0       0.55      0.66      0.39      0.60      0.51      0.26       159
+          1       0.41      0.36      0.66      0.38      0.48      0.23       120
+          2       0.00      0.00      0.99      0.00      0.00      0.00        21
+
+avg / total       0.46      0.49      0.54      0.47      0.46      0.23       300
+
+[ONLINE LEARNING]
+Kappa:  0.05780546184436197
+GMean:  0.23052830969906654
+Accuracy:  0.490121399666746
+              precision    recall  f1-score   support
+
+           0       0.53      0.66      0.59      2119
+           1       0.44      0.38      0.41      1670
+           2       0.23      0.05      0.08       412
+
+    accuracy                           0.49      4201
+   macro avg       0.40      0.36      0.36      4201
+weighted avg       0.46      0.49      0.47      4201
+
+                   pre       rec       spe        f1       geo       iba       sup
+
+          0       0.53      0.66      0.40      0.59      0.51      0.27      2119
+          1       0.44      0.38      0.67      0.41      0.51      0.25      1670
+          2       0.23      0.05      0.98      0.08      0.22      0.04       412
+
+avg / total       0.46      0.49      0.57      0.47      0.48      0.24      4201
+

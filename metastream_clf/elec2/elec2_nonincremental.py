@@ -168,7 +168,6 @@ if __name__ == "__main__":
     metadf = np.empty((0, base_data.shape[1]-1), np.float32)
     metay = []
     counter = 0
-    batch = 32
 
     m_recommended = []
     m_best = []
@@ -198,8 +197,8 @@ if __name__ == "__main__":
         counter += 1
         if counter % args.gamma == 0:
             metas = lgb.train(lgb_params,
-                              train_set=lgb.Dataset(metadf[-batch:],
-                                                    metay[-batch:]))
+                              train_set=lgb.Dataset(metadf[-args.omega:],
+                                                    metay[-args.omega:]))
 
     dump(m_diff, path + 'difference.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
