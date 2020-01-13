@@ -197,9 +197,9 @@ if __name__ == "__main__":
         metay.append(max_score)
         counter += 1
         if counter % args.gamma == 0:
-            metas = lgb.train(lgb_params, init_model=metas,
-                              train_set=lgb.Dataset(metadf[-args.gamma:],
-                                                    metay[-args.gamma:]))
+            metas = lgb.train(lgb_params,
+                              train_set=lgb.Dataset(metadf[-args.omega:],
+                                                    metay[-args.omega:]))
 
     dump(m_diff, path + 'difference.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
