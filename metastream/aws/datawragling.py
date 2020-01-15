@@ -13,7 +13,7 @@ df = pd.read_csv(url).query("region=='eu-west-1a' and "+
 df = df[df.instance_type.str.contains('r3.')].sort_values(['month', 'day',
                                                            'hour', 'minute'])\
                                              .reset_index(drop=True)
-df.price = df.price > df.price.std()
+df.price = (df.price > df.price.std()).astype(int)
 df.rename(columns={'price':'class'}, inplace=True)
 
 print(df.head())
