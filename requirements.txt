@@ -5,3 +5,5 @@ imblearn
 tqdm
 pymfe
 lightgbm
+jupyter
+statsmodels

@@ -202,9 +202,6 @@ if __name__ == "__main__":
                                                     metay[-args.omega:]))
 
     dump(m_diff, path + 'difference.joblib')
-    dump(m_best, path + 'best.joblib')
-    dump(m_recommended, path + 'recommended.joblib')
-    dump(metadf, path + 'metadata.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
     print("GMean: ", geometric_mean_score(m_best, m_recommended))
     print("Accuracy: ", accuracy_score(m_best, m_recommended))
