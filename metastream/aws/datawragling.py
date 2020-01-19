@@ -15,6 +15,7 @@ df = df[df.instance_type.str.contains('r3.')].sort_values(['month', 'day',
                                              .reset_index(drop=True)
 df.price = (df.price > df.price.std()).astype(int)
 df.rename(columns={'price':'class'}, inplace=True)
+df = pd.get_dummies(df, columns=['instance_type'], drop_first=True)
 
 print(df.head())
 print(df.tail())
