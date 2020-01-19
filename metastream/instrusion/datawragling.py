@@ -9,6 +9,7 @@ os.makedirs(path, mode=0o777, exist_ok=True)
 
 df = pd.read_csv(url, header=None, compression='zip').rename(
     columns={41:'class'})
+df = df.head(30000)
 df['class'] = (df['class'] == 'normal.').astype(int)
 df = pd.get_dummies(df, columns=[1,2,3], drop_first=True)
 

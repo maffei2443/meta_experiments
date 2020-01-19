@@ -10,6 +10,7 @@ os.makedirs(path, mode=0o777, exist_ok=True)
 df = pd.read_csv(url).query("region=='eu-west-1a' and "+
                                          "operating_system=='Linux/UNIX'")\
                                   .drop(['region', 'operating_system'],axis=1)
+df = df.head(30000)
 df = df[df.instance_type.str.contains('r3.')].sort_values(['month', 'day',
                                                            'hour', 'minute'])\
                                              .reset_index(drop=True)
