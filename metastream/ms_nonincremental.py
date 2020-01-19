@@ -193,6 +193,8 @@ if __name__ == "__main__":
         m_recommended.append(recommended)
         m_best.append(max_score)
         m_diff.append(scores[recommended] - scores[default])
+        score_recommended.append(scores[recommended])
+        score_default.append(scores[default])
 
         metay.append(max_score)
         counter += 1
@@ -204,6 +206,8 @@ if __name__ == "__main__":
     dump(m_recommended, path + 'recommended.joblib')
     dump(m_best, path + 'best.joblib')
     dump(m_diff, path + 'difference.joblib')
+    dump(score_recommended, path + 'score_reco.joblib')
+    dump(score_default, path + 'score_def.joblib')
     dump(metadf, path + 'metadf.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
     print("GMean: ", geometric_mean_score(m_best, m_recommended))
