@@ -30,10 +30,10 @@ parser.add_argument('--initial', type=int, help='initial data.')
 parser.add_argument('--target', help='target label.')
 parser.add_argument('--eval_metric', help='eval metric for metastream.')
 parser.add_argument('--path', help='data path.')
-parser.add_argument('--metay', help='metay label.', default='clf')
+parser.add_argument('--metay', help='metay label.', default='best_classifier')
 
 args = parser.parse_args()
-metay_label = 'best_classifier'
+metay_label = args.metay
 models = [
     SVC(gamma='scale'),
     RandomForestClassifier(random_state=42),

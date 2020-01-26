@@ -7,3 +7,4 @@ pymfe
 lightgbm
 jupyter
 statsmodels
+seaborn
