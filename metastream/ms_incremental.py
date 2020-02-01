@@ -36,18 +36,17 @@ args = parser.parse_args()
 metay_label = args.metay
 models = [
     SVC(gamma='scale'),
-    RandomForestClassifier(random_state=42),
-    GaussianNB()
+    RandomForestClassifier(random_state=42)
 ]
 lgb_params = {
     'boosting_type': 'dart',
-    'learning_rate': 0.1,
+    'learning_rate': 0.01,
     'tree_learner': 'feature',
-    'metric': 'multi_error,multi_logloss',
-    'objective': 'multiclassova',
-    'num_class': len(models),
-    # 'metric': 'binary_error,binary_logloss',
-    # 'objective': 'binary',
+    # 'metric': 'multi_error,multi_logloss',
+    # 'objective': 'multiclassova',
+    # 'num_class': len(models),
+    'metric': 'binary_error,binary_logloss',
+    'objective': 'binary',
     'is_unbalance': True,
     'verbose': -1,
     'seed': 42
@@ -63,8 +62,7 @@ params = [
     "max_features": stats.randint(1, 9),
     "min_samples_split": stats.randint(2, 11),
     "bootstrap": [True, False],
-    "criterion": ["gini", "entropy"]},
-    {}
+    "criterion": ["gini", "entropy"]}
 ]
 
 def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
