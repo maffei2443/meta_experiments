@@ -145,7 +145,7 @@ if __name__ == "__main__":
     for train_idx, test_idx in tqdm(loo.split(mX), total=args.initial):
         metas = lgb.train(lgb_params, train_set=lgb.Dataset(mX[train_idx],
                                                             mY[train_idx]))
-        myhattest.append(np.argmax(metas.predict(mX[test_idx]), axis=1)[0])
+        myhattest.append(np.where(metas.predict(mX[test_idx])>.5, 1, 0)[0])
         mytest.append(mY[test_idx][0])
 
     metas.save_model(path + 'metamodel.txt')
@@ -186,7 +186,7 @@ if __name__ == "__main__":
                      not in missing_columns]]
         metadf = np.append(metadf, mfe_feats, axis=0)
         max_score = np.argmax(scores)
-        recommended = np.argmax(metas.predict(mfe_feats))
+        recommended = np.where(metas.predict(mfe_feats)>.5, 1, 0)[0]
 
         m_recommended.append(recommended)
         m_best.append(max_score)
