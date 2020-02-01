@@ -40,7 +40,7 @@ models = [
 ]
 lgb_params = {
     'boosting_type': 'dart',
-    'learning_rate': 0.01,
+    'learning_rate': 0.1,
     'tree_learner': 'feature',
     # 'metric': 'multi_error,multi_logloss',
     # 'objective': 'multiclassova',
