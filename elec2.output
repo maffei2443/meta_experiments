@@ -1,53 +1,47 @@
 [FINETUNING BASE MODELS]
 [GENERATE METAFEATURE]
 Frequency statistics in metabase:
-	SVC                      0.530
-	RandomForestClassifier   0.400
-	GaussianNB               0.070
+	SVC                      0.563
+	RandomForestClassifier   0.437
 [OFFLINE LEARNING]
-Kappa:    0.102
-GMean:    0.398
-Accuracy: 0.517
-[[99 58  2]
- [65 51  4]
- [ 7  9  5]]
+Kappa:    0.083
+GMean:    0.532
+Accuracy: 0.553
+[[108  61]
+ [ 73  58]]
               precision    recall  f1-score   support
 
-           0       0.58      0.62      0.60       159
-           1       0.43      0.42      0.43       120
-           2       0.45      0.24      0.31        21
+           0       0.60      0.64      0.62       169
+           1       0.49      0.44      0.46       131
 
-    accuracy                           0.52       300
-   macro avg       0.49      0.43      0.45       300
-weighted avg       0.51      0.52      0.51       300
+    accuracy                           0.55       300
+   macro avg       0.54      0.54      0.54       300
+weighted avg       0.55      0.55      0.55       300
 
                    pre       rec       spe        f1       geo       iba       sup
 
-          0       0.58      0.62      0.49      0.60      0.55      0.31       159
-          1       0.43      0.42      0.63      0.43      0.52      0.26       120
-          2       0.45      0.24      0.98      0.31      0.48      0.22        21
+          0       0.60      0.64      0.44      0.62      0.53      0.29       169
+          1       0.49      0.44      0.64      0.46      0.53      0.28       131
 
-avg / total       0.51      0.52      0.58      0.51      0.53      0.28       300
+avg / total       0.55      0.55      0.53      0.55      0.53      0.28       300
 
 [ONLINE LEARNING]
-Kappa:  -0.013338909915268982
-GMean:  0.08271945517665195
-Accuracy:  0.45251130683170676
+Kappa:  -0.016832518594860346
+GMean:  0.476400055356594
+Accuracy:  0.5053558676505594
               precision    recall  f1-score   support
 
-           0       0.50      0.58      0.54      2119
-           1       0.39      0.40      0.40      1670
-           2       0.12      0.00      0.00       412
+           0       0.55      0.61      0.58      2336
+           1       0.43      0.37      0.40      1865
 
-    accuracy                           0.45      4201
-   macro avg       0.34      0.33      0.31      4201
-weighted avg       0.42      0.45      0.43      4201
+    accuracy                           0.51      4201
+   macro avg       0.49      0.49      0.49      4201
+weighted avg       0.50      0.51      0.50      4201
 
                    pre       rec       spe        f1       geo       iba       sup
 
-          0       0.50      0.58      0.40      0.54      0.48      0.24      2119
-          1       0.39      0.40      0.58      0.40      0.48      0.23      1670
-          2       0.12      0.00      1.00      0.00      0.05      0.00       412
+          0       0.55      0.61      0.37      0.58      0.48      0.23      2336
+          1       0.43      0.37      0.61      0.40      0.48      0.22      1865
 
-avg / total       0.42      0.45      0.53      0.43      0.44      0.21      4201
+avg / total       0.50      0.51      0.48      0.50      0.48      0.23      4201
 
