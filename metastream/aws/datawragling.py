@@ -8,7 +8,7 @@ path = 'data/aws/'
 os.makedirs(path, mode=0o777, exist_ok=True)
 
 df = pd.read_csv(url).query("region=='eu-west-1a' and "
-                            "operating_system=='Linux/UNIX'"
+                            "operating_system=='Linux/UNIX' and "
                             "instance_type=='r3.large'")\
                      .drop(['region', 'operating_system',
                                    'instance_type'],axis=1)
