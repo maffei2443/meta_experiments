@@ -57,8 +57,8 @@ metrics = {
 params = [
     {"C": [1,10,100],
     "kernel": ["rbf", "poly"]},
-    {"max_depth": [3, None],
-    "n_estimators": [100, 200, 300, 500],
+    {"max_depth": [3, 5, None],
+    "n_estimators": [100, 200, 300],
     "max_features": stats.randint(1, 9),
     "min_samples_split": stats.randint(2, 11),
     "bootstrap": [True, False],

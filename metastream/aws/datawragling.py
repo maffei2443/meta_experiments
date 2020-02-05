@@ -12,9 +12,19 @@ df = pd.read_csv(url).query("region=='sa-east-1b' and "
                             "instance_type=='m3.medium'")\
                      .drop(['region', 'operating_system',
                                    'instance_type'],axis=1)
-df = df.sort_values(['month', 'day', 'hour', 'minute']).reset_index(drop=True)
-df.price = (df.price > df.price.mean() + df.price.std()).astype(int)
-df.rename(columns={'price':'class'}, inplace=True)
+df['year'] = 2017
+df['date'] = pd.to_datetime(df[['year', 'month', 'day', 'hour', 'minute']])
+df.set_index('date', inplace=True)
+df.sort_index(inplace=True)
+del df['year']
+periods = 10
+df['mean'] = df.price.rolling('1H', min_periods=periods,
+                              closed='right').mean()
+df['std'] = df.price.rolling('1H', min_periods=periods,
+                             closed='right').std()
+df['class'] = (df.price > df['mean'] + df['std']).astype(int)
+df = df.iloc[periods - 1:]
+del df['price']
 
 print(df.head())
 print(df.tail())
