@@ -7,13 +7,13 @@ path = 'data/aws/'
 
 os.makedirs(path, mode=0o777, exist_ok=True)
 
-df = pd.read_csv(url).query("region=='eu-west-1a' and "
+df = pd.read_csv(url).query("region=='sa-east-1b' and "
                             "operating_system=='Linux/UNIX' and "
-                            "instance_type=='r3.large'")\
+                            "instance_type=='m3.medium'")\
                      .drop(['region', 'operating_system',
                                    'instance_type'],axis=1)
 df = df.sort_values(['month', 'day', 'hour', 'minute']).reset_index(drop=True)
-df.price = (df.price > df.price.std()).astype(int)
+df.price = (df.price > df.price.mean() + df.price.std()).astype(int)
 df.rename(columns={'price':'class'}, inplace=True)
 
 print(df.head())
