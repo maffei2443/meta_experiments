@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
+from sklearn.svm import SVC, LinearSVC
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
 from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
