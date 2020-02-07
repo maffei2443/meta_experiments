@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
+from sklearn.svm import SVC, LinearSVC
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
 from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
@@ -35,7 +35,7 @@ parser.add_argument('--metay', help='metay label.', default='best_classifier')
 args = parser.parse_args()
 metay_label = args.metay
 models = [
-    SVC(gamma='scale'),
+    LinearSVC(),
     RandomForestClassifier(random_state=42)
 ]
 lgb_params = {
@@ -55,8 +55,8 @@ metrics = {
     'acc': accuracy_score
 }
 params = [
-    {"C": [1,10,100],
-    "kernel": ["rbf", "poly"]},
+    {"C": [1,10,100]
+     },
     {"max_depth": [3, 5, None],
     "n_estimators": [100, 200, 300],
     "max_features": stats.randint(1, 9),

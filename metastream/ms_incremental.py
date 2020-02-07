@@ -35,7 +35,7 @@ parser.add_argument('--metay', help='metay label.', default='best_classifier')
 args = parser.parse_args()
 metay_label = args.metay
 models = [
-    SVC(gamma='scale'),
+    LinearSVC(),
     RandomForestClassifier(random_state=42)
 ]
 lgb_params = {
@@ -55,8 +55,8 @@ metrics = {
     'acc': accuracy_score
 }
 params = [
-    {"C": [1,10,100],
-    "kernel": ["rbf", "poly"]},
+    {"C": [1,10,100]
+     },
     {"max_depth": [3, 5, None],
     "n_estimators": [100, 200, 300],
     "max_features": stats.randint(1, 9),
