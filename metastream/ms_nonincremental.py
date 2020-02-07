@@ -57,8 +57,8 @@ metrics = {
 params = [
     {"C": [1,10,100],
     "kernel": ["rbf", "poly"]},
-    {"max_depth": [3, None],
-    "n_estimators": [100, 200, 300, 500],
+    {"max_depth": [3, 5, None],
+    "n_estimators": [100, 200, 300],
     "max_features": stats.randint(1, 9),
     "min_samples_split": stats.randint(2, 11),
     "bootstrap": [True, False],
@@ -174,6 +174,8 @@ if __name__ == "__main__":
 
     score_recommended = []
     score_default = []
+    score_svm = []
+    score_rf = []
 
     small_data = 5000000
     until_data = min(args.initial + small_data,
@@ -188,6 +190,8 @@ if __name__ == "__main__":
         max_score = np.argmax(scores)
         recommended = np.where(metas.predict(mfe_feats)>.5, 1, 0)[0]
 
+        score_svm.append(scores[0])
+        score_rf.append(scores[1])
         m_recommended.append(recommended)
         m_best.append(max_score)
         m_diff.append(scores[recommended] - scores[default])
@@ -206,6 +210,8 @@ if __name__ == "__main__":
     dump(m_diff, path + 'difference.joblib')
     dump(score_recommended, path + 'score_reco.joblib')
     dump(score_default, path + 'score_def.joblib')
+    dump(score_svm, path + 'score_svm.joblib')
+    dump(score_rf, path + 'score_rf.joblib')
     dump(metadf, path + 'metadf.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
     print("GMean: ", geometric_mean_score(m_best, m_recommended))
