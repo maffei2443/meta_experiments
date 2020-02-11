@@ -18,6 +18,8 @@ from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
 from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
 from imblearn.metrics import geometric_mean_score, classification_report_imbalanced
+from sklearn.pipeline import Pipeline
+from sklearn.kernel_approximation import Nystroem
 
 import lightgbm as lgb
 
@@ -35,7 +37,8 @@ parser.add_argument('--metay', help='metay label.', default='best_classifier')
 args = parser.parse_args()
 metay_label = args.metay
 models = [
-    LinearSVC(),
+    Pipeline([("nys", Nystroem(random_state=42)),
+              ("svm", LinearSVC(dual=False))]),
     RandomForestClassifier(random_state=42)
 ]
 lgb_params = {
@@ -55,11 +58,11 @@ metrics = {
     'acc': accuracy_score
 }
 params = [
-    {"C": [1,10,100]
+    {"svm__C": [1,10,100],
+     "nys__kernel": ['poly', 'rbf', 'sigmoid']
      },
     {"max_depth": [3, 5, None],
     "n_estimators": [100, 200, 300],
-    "max_features": stats.randint(1, 9),
     "min_samples_split": stats.randint(2, 11),
     "bootstrap": [True, False],
     "criterion": ["gini", "entropy"]}
@@ -114,7 +117,8 @@ if __name__ == "__main__":
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
-    sup_mfe = MFE(random_state=42)
+    sup_mfe = MFE(groups=["general", "statistical"],
+                  random_state=42)
     unsup_mfe = MFE(groups=['statistical'], random_state=42)
     for idx in tqdm(range(0, args.initial)):
         mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,

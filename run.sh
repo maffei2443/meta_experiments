@@ -1,7 +1,7 @@
 #PBS -l select=1:ngpus=1
 #PBS -l walltime=3:00:00
 
-for i in 'elec2' 'flights' 'powersupply' 'covtype';
+for i in 'elec2' 'aws' 'powersupply' 'covtype';
   do
     echo $i
     echo start: $(date "+%y%m%d.%H%M%S.%3N")
@@ -9,7 +9,7 @@ for i in 'elec2' 'flights' 'powersupply' 'covtype';
     echo stop:  $(date "+%y%m%d.%H%M%S.%3N")
 done
 echo non incremental
-for i in 'elec2' 'flights' 'powersupply' 'covtype';
+for i in 'elec2' 'aws' 'powersupply' 'covtype';
   do
     echo $i
     echo start: $(date "+%y%m%d.%H%M%S.%3N")
