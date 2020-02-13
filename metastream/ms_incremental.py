@@ -117,9 +117,9 @@ if __name__ == "__main__":
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
-    sup_mfe = MFE(groups=["general", "statistical"],
+    sup_mfe = MFE(groups=["statistical", "landmarking"],
                   random_state=42)
-    unsup_mfe = MFE(groups=['statistical'], random_state=42)
+    unsup_mfe = MFE(groups=["statistical"], random_state=42)
     for idx in tqdm(range(0, args.initial)):
         mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
                                        args.omega, models, args.target,
