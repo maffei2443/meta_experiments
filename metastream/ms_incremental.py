@@ -16,7 +16,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC, LinearSVC
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer, confusion_matrix
-from sklearn.model_selection import RandomizedSearchCV, LeaveOneOut
+from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 from imblearn.metrics import geometric_mean_score, classification_report_imbalanced
 from sklearn.pipeline import Pipeline
 from sklearn.kernel_approximation import Nystroem
@@ -36,6 +36,8 @@ parser.add_argument('--metay', help='metay label.', default='best_classifier')
 
 args = parser.parse_args()
 metay_label = args.metay
+test_size_ts = 100
+args.initial += test_size_ts
 models = [
     Pipeline([("nys", Nystroem(random_state=42)),
               ("svm", LinearSVC(dual=False))]),
@@ -142,7 +144,7 @@ if __name__ == "__main__":
 
     mX, mY = base_data.drop(metay_label, axis=1).values,\
         base_data[metay_label].values
-    loo = LeaveOneOut()
+    loo = TimeSeriesSplit(n_splits=test_size_ts, max_train_size=args.omega)
 
     myhattest = []
     mytest = []
@@ -175,6 +177,7 @@ if __name__ == "__main__":
     m_recommended = []
     m_best = []
     m_diff = []
+    f_importance = []
 
     score_recommended = []
     score_default = []
@@ -208,6 +211,7 @@ if __name__ == "__main__":
             metas = lgb.train(lgb_params, init_model=metas,
                               train_set=lgb.Dataset(metadf[-args.gamma:],
                                                     metay[-args.gamma:]))
+            f_importance.append(metas.feature_importance())
 
     dump(m_recommended, path + 'recommended.joblib')
     dump(m_best, path + 'best.joblib')
@@ -217,6 +221,7 @@ if __name__ == "__main__":
     dump(score_svm, path + 'score_svm.joblib')
     dump(score_rf, path + 'score_rf.joblib')
     dump(metadf, path + 'metadf.joblib')
+    dump(f_importance, path + 'tfi.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
     print("GMean: ", geometric_mean_score(m_best, m_recommended))
     print("Accuracy: ", accuracy_score(m_best, m_recommended))
