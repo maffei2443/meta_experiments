@@ -5,9 +5,9 @@ pgf_with_latex = {
     # # setup matplotlib to use latex for output
     "pgf.texsystem": "xelatex",
     # use LaTeX to write all text
-    "font.family": "Computer Modern Roman ",
-    "font.serif": [],
-    "font.size": 12,
+    "font.family": "serif",
+    "font.serif": "Times",
+    "font.size": 14,
     # # blank entries should cause plots to inherit fonts from the document
     #"font.sans-serif": [],
     #"font.monospace": [],
