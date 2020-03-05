@@ -4,44 +4,44 @@ Frequency statistics in metabase:
 	Pipeline                 0.752
 	RandomForestClassifier   0.247
 [OFFLINE LEARNING]
-Kappa:    0.073
-GMean:    0.373
-Accuracy: 0.710
-[[67  7]
- [22  4]]
+Kappa:    0.228
+GMean:    0.524
+Accuracy: 0.740
+[[66  8]
+ [18  8]]
               precision    recall  f1-score   support
 
-           0       0.75      0.91      0.82        74
-           1       0.36      0.15      0.22        26
+           0       0.79      0.89      0.84        74
+           1       0.50      0.31      0.38        26
 
-    accuracy                           0.71       100
-   macro avg       0.56      0.53      0.52       100
-weighted avg       0.65      0.71      0.66       100
+    accuracy                           0.74       100
+   macro avg       0.64      0.60      0.61       100
+weighted avg       0.71      0.74      0.72       100
 
                    pre       rec       spe        f1       geo       iba       sup
 
-          0       0.75      0.91      0.15      0.82      0.37      0.15        74
-          1       0.36      0.15      0.91      0.22      0.37      0.13        26
+          0       0.79      0.89      0.31      0.84      0.52      0.29        74
+          1       0.50      0.31      0.89      0.38      0.52      0.26        26
 
-avg / total       0.65      0.71      0.35      0.66      0.37      0.14       100
+avg / total       0.71      0.74      0.46      0.72      0.52      0.28       100
 
 [ONLINE LEARNING]
-Kappa:  0.013962762339549184
-GMean:  0.4015856326960865
-Accuracy:  0.6552060473055352
+Kappa:  0.03310809793977343
+GMean:  0.4413630358684599
+Accuracy:  0.6447207998049256
               precision    recall  f1-score   support
 
-           0       0.74      0.81      0.78      3040
-           1       0.27      0.20      0.23      1061
+           0       0.75      0.78      0.77      3040
+           1       0.29      0.25      0.27      1061
 
-    accuracy                           0.66      4101
-   macro avg       0.51      0.51      0.50      4101
-weighted avg       0.62      0.66      0.64      4101
+    accuracy                           0.64      4101
+   macro avg       0.52      0.52      0.52      4101
+weighted avg       0.63      0.64      0.64      4101
 
                    pre       rec       spe        f1       geo       iba       sup
 
-          0       0.74      0.81      0.20      0.78      0.40      0.17      3040
-          1       0.27      0.20      0.81      0.23      0.40      0.15      1061
+          0       0.75      0.78      0.25      0.77      0.44      0.21      3040
+          1       0.29      0.25      0.78      0.27      0.44      0.18      1061
 
-avg / total       0.62      0.66      0.36      0.64      0.40      0.17      4101
+avg / total       0.63      0.64      0.39      0.64      0.44      0.20      4101
 
