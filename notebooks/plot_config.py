@@ -13,17 +13,6 @@ pgf_with_latex = {
     #"font.monospace": [],
     'path.simplify': True,
     'path.simplify_threshold': 0.1,
-    'legend.markerscale': .9,
-    'legend.numpoints': 1,
-    'legend.handlelength': 2,
-    'legend.scatterpoints': 1,
-    'legend.labelspacing': 0.5,
-    'legend.facecolor': '#eff0f1',
-    'legend.edgecolor': 'none',
-    'legend.handletextpad': 0.5,  # pad between handle and text
-    'legend.borderaxespad': 0.5,  # pad between legend and axes
-    'legend.borderpad': 0.5,  # pad between legend and legend content
-    'legend.columnspacing': 1,  # pad between each legend column
     'axes.spines.left': True,
     'axes.spines.top': True,
     'axes.titlesize': 'large',

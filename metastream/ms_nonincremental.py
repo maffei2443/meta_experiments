@@ -92,11 +92,11 @@ def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval
     sup_mfe.fit(xtrain.values, ytrain.values)
     ft = sup_mfe.extract()
     sup_feats = {'sup_{}'.format(k):v for k,v in zip(*ft)}
-    # unsup_mfe.fit(xsel.values)
-    # ft = unsup_mfe.extract()
-    # unsup_feats = {'unsup_{}'.format(k):v for k,v in zip(*ft)}
+    unsup_mfe.fit(xsel.values)
+    ft = unsup_mfe.extract()
+    unsup_feats = {'unsup_{}'.format(k):v for k,v in zip(*ft)}
 
-    # sup_feats.update(unsup_feats)
+    sup_feats.update(unsup_feats)
     mfe_feats = sup_feats
 
     for model in models:
@@ -119,7 +119,7 @@ if __name__ == "__main__":
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
-    sup_mfe = MFE(groups=["statistical", "landmarking"],
+    sup_mfe = MFE(groups=["statistical", "landmarking", "info-theory"],
                   random_state=42)
     unsup_mfe = MFE(groups=["statistical"], random_state=42)
     for idx in tqdm(range(0, args.initial)):
