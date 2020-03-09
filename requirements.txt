@@ -3,7 +3,7 @@ matplotlib
 scikit-learn
 imblearn
 tqdm
-pymfe
+git+https://github.com/ealcobaca/pymfe
 lightgbm
 jupyter
 statsmodels
