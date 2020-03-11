@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
     myhattest = []
     mytest = []
-    for train_idx, test_idx in tqdm(loo.split(mX), total=args.initial):
+    for train_idx, test_idx in tqdm(loo.split(mX), total=test_size_ts):
         metas = lgb.train(lgb_params, train_set=lgb.Dataset(mX[train_idx],
                                                             mY[train_idx]))
         myhattest.append(np.where(metas.predict(mX[test_idx])>.5, 1, 0)[0])
