@@ -91,12 +91,12 @@ def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval
 
     sup_mfe.fit(xtrain.values, ytrain.values)
     ft = sup_mfe.extract()
-    sup_feats = {'sup_{}'.format(k):v for k,v in zip(*ft)}
-    unsup_mfe.fit(xsel.values)
-    ft = unsup_mfe.extract()
-    unsup_feats = {'unsup_{}'.format(k):v for k,v in zip(*ft)}
+    sup_feats = dict(zip(*ft))
+    # unsup_mfe.fit(xsel.values)
+    # ft = unsup_mfe.extract()
+    # unsup_feats = {'unsup_{}'.format(k):v for k,v in zip(*ft)}
 
-    sup_feats.update(unsup_feats)
+    # sup_feats.update(unsup_feats)
     mfe_feats = sup_feats
 
     for model in models:
@@ -144,24 +144,31 @@ if __name__ == "__main__":
 
     mX, mY = base_data.drop(metay_label, axis=1).values,\
         base_data[metay_label].values
-    loo = TimeSeriesSplit(n_splits=test_size_ts, max_train_size=args.omega)
 
-    myhattest = []
-    mytest = []
-    for train_idx, test_idx in tqdm(loo.split(mX), total=test_size_ts):
-        metas = lgb.train(lgb_params, train_set=lgb.Dataset(mX[train_idx],
-                                                            mY[train_idx]))
-        myhattest.append(np.where(metas.predict(mX[test_idx])>.5, 1, 0)[0])
-        mytest.append(mY[test_idx][0])
+    kappas = []
+    gmeans = []
+    accurs = []
+    for i in tqdm(range(test_size_ts)):
+        itrain
+        itest = i+args.omega
+        metas = lgb.train(lgb_params,
+                          train_set=lgb.Dataset(mX[i:i+args.omega],
+                                                mY[i:i+args.omega]))
+
+        preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
+        targets = mY[itest:itest+args.gamma]
+        if np.array_equal(preds, targets):
+            kappas.append(1.0)
+        else:
+            kappas.append(cohen_kappa_score(targets, preds))
+        gmeans.append(geometric_mean_score(targets, preds))
+        accurs.append(accuracy_score(targets, preds))
 
     metas.save_model(path + 'metamodel.txt')
     metas = lgb.Booster(model_file=path + 'metamodel.txt')
-    print("Kappa:    {:.3f}".format(cohen_kappa_score(mytest, myhattest)))
-    print("GMean:    {:.3f}".format(geometric_mean_score(mytest, myhattest)))
-    print("Accuracy: {:.3f}".format(accuracy_score(mytest, myhattest)))
-    print(confusion_matrix(mytest, myhattest))
-    print(classification_report(mytest, myhattest))
-    print(classification_report_imbalanced(mytest, myhattest))
+    print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas)), np.std(kappas))
+    print("GMean:    {:.3f}+-{:.3f}".format(np.mean(gmeans)), np.std(gmeans))
+    print("Accuracy: {:.3f}+-{:.3f}".format(np.mean(accurs), np.std(accurs)))
     importance = metas.feature_importance()
     fnames = base_data.columns
     dump(importance, path + 'importance.joblib')
