@@ -149,7 +149,6 @@ if __name__ == "__main__":
     gmeans = []
     accurs = []
     for i in tqdm(range(test_size_ts)):
-        itrain
         itest = i+args.omega
         metas = lgb.train(lgb_params,
                           train_set=lgb.Dataset(mX[i:i+args.omega],
