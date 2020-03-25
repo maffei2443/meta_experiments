@@ -165,8 +165,8 @@ if __name__ == "__main__":
 
     metas.save_model(path + 'metamodel.txt')
     metas = lgb.Booster(model_file=path + 'metamodel.txt')
-    print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas)), np.std(kappas))
-    print("GMean:    {:.3f}+-{:.3f}".format(np.mean(gmeans)), np.std(gmeans))
+    print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas), np.std(kappas)))
+    print("GMean:    {:.3f}+-{:.3f}".format(np.mean(gmeans), np.std(gmeans)))
     print("Accuracy: {:.3f}+-{:.3f}".format(np.mean(accurs), np.std(accurs)))
     importance = metas.feature_importance()
     fnames = base_data.columns
