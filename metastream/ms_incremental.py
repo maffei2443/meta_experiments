@@ -154,14 +154,16 @@ if __name__ == "__main__":
     accurs = []
     off_targets = []
     off_preds = []
-    for i in tqdm(range(test_size_ts)):
-        itest = i+args.omega
+    for i in tqdm(range(test_size_ts//10)):
+        # step = args.gamma
+        step = 10
+        itest = (i*step)+args.omega
         metas = lgb.train(lgb_params,
-                          train_set=lgb.Dataset(mX[i:i+args.omega],
-                                                mY[i:i+args.omega]))
+                          train_set=lgb.Dataset(mX[(i*step):itest],
+                                                mY[(i*step):itest]))
 
-        preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
-        targets = mY[itest:itest+args.gamma]
+        preds = np.where(metas.predict(mX[itest:itest+step])>.5, 1, 0)
+        targets = mY[itest:itest+step]
         if np.array_equal(preds, targets):
             kappas.append(1.0)
         else:
