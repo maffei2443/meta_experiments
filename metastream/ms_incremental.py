@@ -154,16 +154,14 @@ if __name__ == "__main__":
     accurs = []
     off_targets = []
     off_preds = []
-    for i in tqdm(range(test_size_ts//10)):
-        # step = args.gamma
-        step = 10
-        itest = (i*step)+args.omega
+    for i in tqdm(range(test_size_ts)):
+        itest = i+args.omega
         metas = lgb.train(lgb_params,
-                          train_set=lgb.Dataset(mX[(i*step):itest],
-                                                mY[(i*step):itest]))
+                          train_set=lgb.Dataset(mX[i:itest],
+                                                mY[i:itest]))
 
-        preds = np.where(metas.predict(mX[itest:itest+step])>.5, 1, 0)
-        targets = mY[itest:itest+step]
+        preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
+        targets = mY[itest:itest+args.gamma]
         if np.array_equal(preds, targets):
             kappas.append(1.0)
         else:
@@ -175,7 +173,6 @@ if __name__ == "__main__":
 
     dump(off_preds, path + 'off_preds.joblib')
     dump(off_targets, path + 'off_targets.joblib')
-    exit()
     metas.save_model(path + 'metamodel.txt')
     metas = lgb.Booster(model_file=path + 'metamodel.txt')
     print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas), np.std(kappas)))
