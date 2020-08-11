@@ -4,26 +4,26 @@ Frequency statistics in metabase:
 	RandomForestClassifier   0.645
 	Pipeline                 0.355
 [OFFLINE LEARNING]
-Kappa:    0.358+-0.191
-GMean:    0.647+-0.155
-Accuracy: 0.699+-0.129
+Kappa:    0.337+-0.211
+GMean:    0.633+-0.193
+Accuracy: 0.682+-0.135
 [ONLINE LEARNING]
-Kappa:  0.11560637425844367
-GMean:  0.5180164432039228
-Accuracy:  0.6267123287671232
+Kappa:  0.09266840342389293
+GMean:  0.502393546624912
+Accuracy:  0.6077705827937095
               precision    recall  f1-score   support
 
-           0       0.41      0.35      0.38       189
-           1       0.71      0.76      0.73       395
+           0       0.42      0.34      0.37       376
+           1       0.68      0.75      0.71       705
 
-    accuracy                           0.63       584
-   macro avg       0.56      0.56      0.56       584
-weighted avg       0.61      0.63      0.62       584
+    accuracy                           0.61      1081
+   macro avg       0.55      0.54      0.54      1081
+weighted avg       0.59      0.61      0.60      1081
 
                    pre       rec       spe        f1       geo       iba       sup
 
-          0       0.41      0.35      0.76      0.38      0.52      0.26       189
-          1       0.71      0.76      0.35      0.73      0.52      0.28       395
+          0       0.42      0.34      0.75      0.37      0.50      0.24       376
+          1       0.68      0.75      0.34      0.71      0.50      0.26       705
 
-avg / total       0.61      0.63      0.48      0.62      0.52      0.27       584
+avg / total       0.59      0.61      0.48      0.60      0.50      0.26      1081
 

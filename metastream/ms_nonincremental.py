@@ -119,7 +119,14 @@ if __name__ == "__main__":
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
-    sup_mfe = MFE(groups=["statistical", "landmarking"],
+    sup_mfe = MFE(features=["best_node","elite_nn","linear_discr",
+                            "naive_bayes","one_nn","random_node","worst_node",
+                            "can_cor","cor", "cov","g_mean",
+                            "gravity","h_mean","iq_range","kurtosis",
+                            "lh_trace","mad","max","mean","median","min",
+                            "nr_cor_attr","nr_disc","nr_norm","nr_outliers",
+                            "p_trace","range","roy_root","sd","sd_ratio",
+                            "skewness","sparsity","t_mean","var","w_lambda"],
                   random_state=42)
     unsup_mfe = MFE(groups=["statistical"], random_state=42)
     for idx in tqdm(range(0, args.initial)):

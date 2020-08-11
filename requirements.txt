@@ -4,8 +4,9 @@ matplotlib
 scikit-learn
 imblearn
 tqdm
-git+https://github.com/ealcobaca/pymfe
+pymfe
 lightgbm
 jupyter
 statsmodels
 seaborn
+scikit-multiflow
