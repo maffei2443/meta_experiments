@@ -1,0 +1,29 @@
+[FINETUNING BASE MODELS]
+[GENERATE METAFEATURE]
+Frequency statistics in metabase:
+	RandomForestClassifier   0.785
+	Pipeline                 0.215
+[OFFLINE LEARNING]
+Kappa:    0.007+-0.138
+GMean:    0.046+-0.164
+Accuracy: 0.780+-0.078
+[ONLINE LEARNING]
+Kappa:  -0.041577706918064505
+GMean:  0.3273299891908413
+Accuracy:  0.7009463722397477
+              precision    recall  f1-score   support
+
+           0       0.15      0.13      0.14       295
+           1       0.81      0.83      0.82      1290
+
+    accuracy                           0.70      1585
+   macro avg       0.48      0.48      0.48      1585
+weighted avg       0.68      0.70      0.69      1585
+
+                   pre       rec       spe        f1       geo       iba       sup
+
+          0       0.15      0.13      0.83      0.14      0.33      0.10       295
+          1       0.81      0.83      0.13      0.82      0.33      0.11      1290
+
+avg / total       0.68      0.70      0.26      0.69      0.33      0.11      1585
+
