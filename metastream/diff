@@ -1,0 +1,8 @@
+234,236c234,236
+<             metas = lgb.train(lgb_params, init_model=metas,
+<                               train_set=lgb.Dataset(metadf[-args.gamma:],
+<                                                     metay[-args.gamma:]))
+---
+>             metas = lgb.train(lgb_params,
+>                               train_set=lgb.Dataset(metadf[-args.omega:],
+>                                                     metay[-args.omega:]))

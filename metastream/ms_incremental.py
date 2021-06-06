@@ -82,7 +82,8 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
-def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
+def base_train(data, idx, sup_mfe, unsup_mfe, gamma, 
+    omega, models, target, eval_metric):
     train = data.iloc[idx * gamma:idx * gamma + omega]
     sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 

@@ -129,13 +129,17 @@ if __name__ == "__main__":
                             "skewness","sparsity","t_mean","var","w_lambda"],
                   random_state=42)
     unsup_mfe = MFE(groups=["statistical"], random_state=42)
+    off_scores = []
     for idx in tqdm(range(0, args.initial)):
         mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
                                        args.omega, models, args.target,
                                        args.eval_metric)
+        off_scores.append(scores)
         max_score = np.argmax(scores)
         mfe_feats[metay_label] = max_score
         metadf.append(mfe_feats)
+
+    dump(off_scores, path + 'off_scores.joblib')
     base_data = pd.DataFrame(metadf)
     base_data.to_csv(path + 'metabase.csv', index=False)
     base_data = pd.read_csv(path + 'metabase.csv')
@@ -155,6 +159,8 @@ if __name__ == "__main__":
     kappas = []
     gmeans = []
     accurs = []
+    off_targets = []
+    off_preds = []
     for i in tqdm(range(test_size_ts)):
         itest = i+args.omega
         metas = lgb.train(lgb_params,
@@ -169,7 +175,11 @@ if __name__ == "__main__":
             kappas.append(cohen_kappa_score(targets, preds))
         gmeans.append(geometric_mean_score(targets, preds))
         accurs.append(accuracy_score(targets, preds))
+        off_targets.append(targets)
+        off_preds.append(preds)
 
+    dump(off_preds, path + 'off_preds.joblib')
+    dump(off_targets, path + 'off_targets.joblib')
     metas.save_model(path + 'metamodel.txt')
     metas = lgb.Booster(model_file=path + 'metamodel.txt')
     print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas), np.std(kappas)))
