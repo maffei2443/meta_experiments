@@ -23,6 +23,9 @@ from sklearn.kernel_approximation import Nystroem
 
 import lightgbm as lgb
 
+import mlflow
+# mlflow.lightgbm.autolog()
+# mlflow.sklearn.autolog()
 
 
 parser = argparse.ArgumentParser(description='Process params for metastream.')
@@ -107,16 +110,19 @@ def base_train(data, idx, sup_mfe, unsup_mfe, gamma,
 
     return mfe_feats, scores
 
+
+from pathlib import Path
 if __name__ == "__main__":
-    path = args.path
+    # path = args.path
+    path = Path(args.path)
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
     print("[FINETUNING BASE MODELS]")
-    df = pd.read_csv(path +'data.csv')
+    df = pd.read_csv(path / 'data.csv')
 
     fine_tune(df, args.initial, args.gamma, args.omega, models, params,
               args.target, args.eval_metric)
-    dump(models, path + 'models.joblib')
-    models = load(path + 'models.joblib')
+    dump(models, path /  'models.joblib')
+    models = load(path /  'models.joblib')
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
@@ -140,10 +146,10 @@ if __name__ == "__main__":
         mfe_feats[metay_label] = max_score
         metadf.append(mfe_feats)
 
-    dump(off_scores, path + 'off_scores.joblib')
+    dump(off_scores, path /  'off_scores.joblib')
     base_data = pd.DataFrame(metadf)
-    base_data.to_csv(path + 'metabase.csv', index=False)
-    base_data = pd.read_csv(path + 'metabase.csv')
+    base_data.to_csv(path /  'metabase.csv', index=False)
+    base_data = pd.read_csv(path /  'metabase.csv')
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
@@ -179,17 +185,17 @@ if __name__ == "__main__":
         off_targets.append(targets)
         off_preds.append(preds)
 
-    dump(off_preds, path + 'off_preds.joblib')
-    dump(off_targets, path + 'off_targets.joblib')
-    metas.save_model(path + 'metamodel.txt')
-    metas = lgb.Booster(model_file=path + 'metamodel.txt')
+    dump(off_preds, path /  'off_preds.joblib')
+    dump(off_targets, path /  'off_targets.joblib')
+    metas.save_model(path /  'metamodel.txt')
+    metas = lgb.Booster(model_file=path /  'metamodel.txt')
     print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas), np.std(kappas)))
     print("GMean:    {:.3f}+-{:.3f}".format(np.mean(gmeans), np.std(gmeans)))
     print("Accuracy: {:.3f}+-{:.3f}".format(np.mean(accurs), np.std(accurs)))
     importance = metas.feature_importance()
     fnames = base_data.columns
-    dump(importance, path + 'importance.joblib')
-    dump(fnames, path + 'fnames.joblib')
+    dump(importance, path /  'importance.joblib')
+    dump(fnames, path /  'fnames.joblib')
 
     ### ONLINE LEARNING
     print("[ONLINE LEARNING]")
@@ -237,15 +243,15 @@ if __name__ == "__main__":
                                                     metay[-args.gamma:]))
             f_importance.append(metas.feature_importance())
 
-    dump(m_recommended, path + 'recommended.joblib')
-    dump(m_best, path + 'best.joblib')
-    dump(m_diff, path + 'difference.joblib')
-    dump(score_recommended, path + 'score_reco.joblib')
-    dump(score_default, path + 'score_def.joblib')
-    dump(score_svm, path + 'score_svm.joblib')
-    dump(score_rf, path + 'score_rf.joblib')
-    dump(metadf, path + 'metadf.joblib')
-    dump(f_importance, path + 'tfi.joblib')
+    dump(m_recommended, path /  'recommended.joblib')
+    dump(m_best, path /  'best.joblib')
+    dump(m_diff, path /  'difference.joblib')
+    dump(score_recommended, path /  'score_reco.joblib')
+    dump(score_default, path /  'score_def.joblib')
+    dump(score_svm, path /  'score_svm.joblib')
+    dump(score_rf, path /  'score_rf.joblib')
+    dump(metadf, path /  'metadf.joblib')
+    dump(f_importance, path /  'tfi.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
     print("GMean: ", geometric_mean_score(m_best, m_recommended))
     print("Accuracy: ", accuracy_score(m_best, m_recommended))

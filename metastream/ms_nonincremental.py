@@ -23,6 +23,9 @@ from sklearn.kernel_approximation import Nystroem
 
 import lightgbm as lgb
 
+import mlflow
+# mlflow.lightgbm.autolog()
+# mlflow.sklearn.autolog()
 
 
 parser = argparse.ArgumentParser(description='Process params for metastream.')
@@ -82,7 +85,8 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
-def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
+def base_train(models, data, idx, sup_mfe, gamma,
+    omega, target, eval_metric):
     train = data.iloc[idx * gamma:idx * gamma + omega]
     sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 
@@ -91,13 +95,7 @@ def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval
 
     sup_mfe.fit(xtrain.values, ytrain.values)
     ft = sup_mfe.extract()
-    sup_feats = dict(zip(*ft))
-    # unsup_mfe.fit(xsel.values)
-    # ft = unsup_mfe.extract()
-    # unsup_feats = {'unsup_{}'.format(k):v for k,v in zip(*ft)}
-
-    # sup_feats.update(unsup_feats)
-    mfe_feats = sup_feats
+    mfe_feats = dict(zip(*ft))
 
     for model in models:
         model.fit(xtrain, ytrain)
@@ -116,6 +114,8 @@ if __name__ == "__main__":
               args.target, args.eval_metric)
     dump(models, path + 'models.joblib')
     models = load(path + 'models.joblib')
+
+
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
@@ -128,15 +128,18 @@ if __name__ == "__main__":
                             "p_trace","range","roy_root","sd","sd_ratio",
                             "skewness","sparsity","t_mean","var","w_lambda"],
                   random_state=42)
-    unsup_mfe = MFE(groups=["statistical"], random_state=42)
+    # unsup_mfe = MFE(groups=["statistical"], random_state=42)
     off_scores = []
+
+    # This loop generates the data composing the
+    # initial data, which means the initial metabase
     for idx in tqdm(range(0, args.initial)):
-        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
-                                       args.omega, models, args.target,
+        mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
+                                       args.omega, args.target,
                                        args.eval_metric)
         off_scores.append(scores)
-        max_score = np.argmax(scores)
-        mfe_feats[metay_label] = max_score
+        # max_score = np.argmax(scores)
+        mfe_feats[metay_label] = np.argmax(scores)
         metadf.append(mfe_feats)
 
     dump(off_scores, path + 'off_scores.joblib')
@@ -164,8 +167,8 @@ if __name__ == "__main__":
     for i in tqdm(range(test_size_ts)):
         itest = i+args.omega
         metas = lgb.train(lgb_params,
-                          train_set=lgb.Dataset(mX[i:i+args.omega],
-                                                mY[i:i+args.omega]))
+                          train_set=lgb.Dataset(mX[i:i+itest],
+                                                mY[i:i+itest]))
 
         preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
         targets = mY[itest:itest+args.gamma]
@@ -211,8 +214,8 @@ if __name__ == "__main__":
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
     for idx in tqdm(range(args.initial, until_data)):
-        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
-                                       args.omega, models, args.target,
+        mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
+                                       args.omega, args.target,
                                        args.eval_metric)
         mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
                      not in missing_columns]]
@@ -229,6 +232,8 @@ if __name__ == "__main__":
         score_default.append(scores[default])
 
         metay.append(max_score)
+        # Quando atinge um múltiplo de gamma (tamanho da janela de seleção)
+        # há que se treinar um novo modelo
         counter += 1
         if counter % args.gamma == 0:
             metas = lgb.train(lgb_params,
