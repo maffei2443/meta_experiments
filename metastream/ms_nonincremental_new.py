@@ -1,3 +1,4 @@
+import os
 import argparse
 import warnings
 warnings.filterwarnings("ignore")
@@ -8,6 +9,7 @@ from scipy import stats
 from joblib import dump, load
 
 from pymfe.mfe import MFE
+from pymfe.general import MFEGeneral
 from tqdm import tqdm
 
 from sklearn.model_selection import KFold, train_test_split
@@ -15,6 +17,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC, LinearSVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import ComplementNB
 
 from sklearn.model_selection import RandomizedSearchCV, TimeSeriesSplit
 from imblearn.metrics import geometric_mean_score, classification_report_imbalanced
@@ -34,13 +38,23 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
     datasize = omega * initial // gamma - 1 # initial base data
     Xcv, ycv = data.loc[:datasize].drop([target], axis=1),\
         data.loc[:datasize, target]
-
+    # input("divisao OK")
     for model, param in tqdm(zip(models, params), total=len(models)):
-        rscv = RandomizedSearchCV(model, param, random_state=42,
-                                  scoring=make_scorer(metrics[eval_metric]),
-                                  cv = gamma, n_jobs=-1)
-        rscv.fit(Xcv, ycv)
-        model.set_params(**rscv.best_params_)
+        
+        try: 
+            rscv = RandomizedSearchCV(model, param, random_state=42,
+                                    scoring=make_scorer(metrics[eval_metric]),
+                                    cv = gamma, n_jobs=-1)
+            # print("RS ok...")
+            try: 
+                rscv.fit(Xcv, ycv)
+
+            except Exception as e:
+                print("huoou", e)
+                input()
+            model.set_params(**rscv.best_params_)
+        except Exception as e:
+            input(f"Escecao: {e}")
 
 def base_train(models, data, idx, sup_mfe, gamma,
     omega, target, eval_metric):
@@ -58,7 +72,9 @@ def base_train(models, data, idx, sup_mfe, gamma,
         model.fit(xtrain, ytrain)
     preds = [model.predict(xsel) for model in models]
     scores = [metrics[eval_metric](ysel, pred) for pred in preds]
-
+    # print(scores)
+    # input()
+    # raise BaseException("uuuu")
     return mfe_feats, scores
 
 if __name__ == "__main__":
@@ -71,6 +87,8 @@ if __name__ == "__main__":
     parser.add_argument('--path', help='data path.')
     parser.add_argument('--metay', help='metay label.', default='best_classifier')
     parser.add_argument('--test_size_ts', help='test_size_ts.', default=100)
+    parser.add_argument('--quick', help='wheter to use only general mtf.', 
+        default=1)
 
     args, _ = parser.parse_known_args()
 
@@ -79,19 +97,72 @@ if __name__ == "__main__":
     args.initial += test_size_ts
 
     models = [
+        # misc
         Pipeline([("nys", Nystroem(random_state=42)),
                 ("svm", LinearSVC(dual=False))]),
-        RandomForestClassifier(random_state=42)
+        RandomForestClassifier(random_state=42),
+        # bayesian models
+        GaussianNB(),
+        ComplementNB(),
+        # linear models
+        # LogisticRegression(random_state=42, n_jobs=-1),
+
     ]
+    params = [
+        dict(svm__C=[1,10,100],        
+            nys__kernel=['poly', 'rbf', 'sigmoid'],
+        ),
+        dict(max_depth=[3, 5, None],
+            n_estimators=[10, 200, 300],
+            min_samples_split=stats.randint(2, 11),
+            criterion=["gini", "entropy"],
+            bootstrap=[True, False],
+        ),
+        dict(
+            var_smoothing=[1e-09]
+        ),
+        dict(
+            alpha=[0., 1.],
+            norm=[True, False],
+        ),
+        # dict(
+        #     max_iter=[100, 150],
+        #     multi_class=['ovr', 'multinomial'],
+        # )
+    ]
+    
+    if args.quick:
+        params = []
+
+
+    p_dict = dict(
+        svm_nys=dict(svm__C=[1,10,100],        
+            nys__kernel=['poly', 'rbf', 'sigmoid'],
+        ),
+        rf=dict(max_depth=[3, 5, None],
+            n_estimators=[10, 200, 300],
+            min_samples_split=stats.randint(2, 11),
+            criterion=["gini", "entropy"],
+            bootstrap=[True, False],
+        ),
+        gaussian_nb=dict(
+            var_smoothing=[1e-09]
+        ),
+        complement_nb=dict(
+            alpha=[0., 1.],
+            norm=[True, False],
+        ),
+    )
+
     lgb_params = {
         'boosting_type': 'dart',
         'learning_rate': 0.01,
         'tree_learner': 'feature',
-        # 'metric': 'multi_error,multi_logloss',
-        # 'objective': 'multiclassova',
-        # 'num_class': len(models),
-        'metric': 'binary_error,binary_logloss',
-        'objective': 'binary',
+        'metric': 'multi_error,multi_logloss',
+        'objective': 'multiclassova',
+        'num_class': len(models),
+        # 'metric': 'binary_error,binary_logloss',
+        # 'objective': 'binary',
         'is_unbalance': True,
         'verbose': -1,
         'seed': 42
@@ -99,16 +170,7 @@ if __name__ == "__main__":
     metrics = {
         'acc': accuracy_score
     }
-    params = [
-        {"svm__C": [1,10,100],
-        "nys__kernel": ['poly', 'rbf', 'sigmoid']
-        },
-        {"max_depth": [3, 5, None],
-        "n_estimators": [100, 200, 300],
-        "min_samples_split": stats.randint(2, 11),
-        "bootstrap": [True, False],
-        "criterion": ["gini", "entropy"]}
-    ]
+
 
 
 
@@ -119,9 +181,14 @@ if __name__ == "__main__":
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
     print("[FINETUNING BASE MODELS]")
     df = pd.read_csv(path +'data.csv')
+    from sklearn.preprocessing import LabelEncoder as LE
+    df[args.target] = LE().fit_transform(df[args.target])
+    print('target:\n\t', df[args.target])
+    # print("skipping fine tune...")
 
     fine_tune(df, args.initial, args.gamma, args.omega, models, params,
               args.target, args.eval_metric)
+
     dump(models, path + 'models.joblib')
     models = load(path + 'models.joblib')
 
@@ -129,33 +196,50 @@ if __name__ == "__main__":
     ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
-    sup_mfe = MFE(features=["best_node","elite_nn","linear_discr",
-                            "naive_bayes","one_nn","random_node","worst_node",
-                            "can_cor","cor", "cov","g_mean",
-                            "gravity","h_mean","iq_range","kurtosis",
-                            "lh_trace","mad","max","mean","median","min",
-                            "nr_cor_attr","nr_disc","nr_norm","nr_outliers",
-                            "p_trace","range","roy_root","sd","sd_ratio",
-                            "skewness","sparsity","t_mean","var","w_lambda"],
-                  random_state=42)
+    if args.quick:
+        print("gotta go fassst")
+        sup_mfe = MFE(
+            groups=['general'], features=['sd', 'min', 'max'], 
+            num_cv_folds=1, summary=('mean',))
+        
+        # base_data = pd.read_csv(path + 'metabase.csv')
+    else:
+        print("normal flow...")
+        sup_mfe = MFE(features=["best_node","elite_nn","linear_discr",
+                                "naive_bayes","one_nn","random_node","worst_node",
+                                "can_cor","cor", "cov","g_mean",
+                                "gravity","h_mean","iq_range","kurtosis",
+                                "lh_trace","mad","max","mean","median","min",
+                                "nr_cor_attr","nr_disc","nr_norm","nr_outliers",
+                                "p_trace","range","roy_root","sd","sd_ratio",
+                                "skewness","sparsity","t_mean","var","w_lambda"],
+                    random_state=42)
     # unsup_mfe = MFE(groups=["statistical"], random_state=42)
     off_scores = []
 
     # This loop generates the data composing the
     # initial data, which means the initial metabase
-    for idx in tqdm(range(0, args.initial)):
-        mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
-                                       args.omega, args.target,
-                                       args.eval_metric)
-        off_scores.append(scores)
-        # max_score = np.argmax(scores)
-        mfe_feats[metay_label] = np.argmax(scores)
-        metadf.append(mfe_feats)
 
-    dump(off_scores, path + 'off_scores.joblib')
-    base_data = pd.DataFrame(metadf)
-    base_data.to_csv(path + 'metabase.csv', index=False)
-    base_data = pd.read_csv(path + 'metabase.csv')
+    # Se nao eh modo rapido OU [eh modo rapido e] nao tem metabase criada, crie-a
+    if not args.quick or not os.path.isfile(path + 'metabase_quick.csv'):
+        for idx in tqdm(range(0, args.initial)):
+            mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
+                                        args.omega, args.target,
+                                        args.eval_metric)
+            off_scores.append(scores)
+            # max_score = np.argmax(scores)
+            mfe_feats[metay_label] = np.argmax(scores)
+            metadf.append(mfe_feats)
+            dump(off_scores, path + 'off_scores.joblib')
+        base_data = pd.DataFrame(metadf)
+        if args.quick:
+            base_data.to_csv(path + 'metabase_quick.csv', index=False)
+        else:
+            base_data.to_csv(path + 'metabase.csv', index=False)
+    else:        
+        print("READING CACHED METABASE...")
+        base_data = pd.read_csv(path + 'metabase_quick.csv')
+    
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
@@ -174,14 +258,25 @@ if __name__ == "__main__":
     accurs = []
     off_targets = []
     off_preds = []
+    preds_lis = []
     for i in tqdm(range(test_size_ts)):
         itest = i+args.omega
         metas = lgb.train(lgb_params,
                           train_set=lgb.Dataset(mX[i:i+itest],
                                                 mY[i:i+itest]))
 
-        preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
+
+        raw_preds=metas.predict(mX[itest:itest+args.gamma])
+        # print("type_raw_pred:", type(raw_preds))
+        # input()
+        # print("raw_preds:", raw_preds)
+        # input('next...')
+        # preds = np.argmax(raw_preds > .5, 1, 0)
+        preds = np.apply_along_axis(np.argmax, 1, raw_preds)   
+        preds_lis.append(preds)
+        # print("preds:", preds)
         targets = mY[itest:itest+args.gamma]
+        # print("targets:", targets)
         if np.array_equal(preds, targets):
             kappas.append(1.0)
         else:
@@ -197,6 +292,8 @@ if __name__ == "__main__":
 
         off_targets.append(targets)
         off_preds.append(preds)
+    df_preds = pd.DataFrame(preds_lis)
+    df_preds.to_csv(path + 'meta_preds.csv')
 
     dump(off_preds, path + 'off_preds.joblib')
     dump(off_targets, path + 'off_targets.joblib')
@@ -240,7 +337,8 @@ if __name__ == "__main__":
     small_data = 5000000
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
-    for idx in tqdm(range(args.initial, until_data)):
+    # for idx in tqdm(range(args.initial, until_data)):
+    for idx in tqdm(range(args.initial, args.initial + 100)):
         mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
                                        args.omega, args.target,
                                        args.eval_metric)
@@ -248,12 +346,18 @@ if __name__ == "__main__":
                      not in missing_columns]]
         metadf = np.append(metadf, mfe_feats, axis=0)
         max_score = np.argmax(scores)
-        recommended = np.where(metas.predict(mfe_feats)>.5, 1, 0)[0]
+        meta_pred = metas.predict(mfe_feats)
+        # print('meta_pred:', meta_pred)
+        recommended = np.argmax(meta_pred[0])
+        # input()
+        # recommended = np.where(meta_pred>.5, 1, 0)[0]
 
         score_svm.append(scores[0])
         score_rf.append(scores[1])
         m_recommended.append(recommended)
         m_best.append(max_score)
+        # print("default:", default)
+        # print("recommended:", recommended)
         m_diff.append(scores[recommended] - scores[default])
         score_recommended.append(scores[recommended])
         score_default.append(scores[default])

@@ -21,7 +21,7 @@ for i in 'elec2';# 'powersupply' 'covtype';
     echo start: $(date "+%y%m%d.%H%M%S.%3N")
     python ms_nonincremental.py --omega 300 --gamma 20\
             --initial 300 --target class --eval_metric acc\
-            --path data/${i}_ninc/ > $i-ninc.output
+            --path data/${i}_ninc/ #> $i-ninc.output
     echo stop:  $(date "+%y%m%d.%H%M%S.%3N")
   done
 

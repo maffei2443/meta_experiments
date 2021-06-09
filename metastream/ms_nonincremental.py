@@ -58,7 +58,9 @@ def base_train(models, data, idx, sup_mfe, gamma,
         model.fit(xtrain, ytrain)
     preds = [model.predict(xsel) for model in models]
     scores = [metrics[eval_metric](ysel, pred) for pred in preds]
-
+    # print(scores)
+    # input()
+    # raise BaseException("uuuu")
     return mfe_feats, scores
 
 if __name__ == "__main__":
@@ -120,8 +122,10 @@ if __name__ == "__main__":
     print("[FINETUNING BASE MODELS]")
     df = pd.read_csv(path +'data.csv')
 
+    # print("skipping fine tune...")
     fine_tune(df, args.initial, args.gamma, args.omega, models, params,
               args.target, args.eval_metric)
+
     dump(models, path + 'models.joblib')
     models = load(path + 'models.joblib')
 
@@ -130,12 +134,12 @@ if __name__ == "__main__":
     print("[GENERATE METAFEATURE]")
     metadf = []
     sup_mfe = MFE(features=["best_node","elite_nn","linear_discr",
-                            "naive_bayes","one_nn","random_node","worst_node",
-                            "can_cor","cor", "cov","g_mean",
-                            "gravity","h_mean","iq_range","kurtosis",
-                            "lh_trace","mad","max","mean","median","min",
-                            "nr_cor_attr","nr_disc","nr_norm","nr_outliers",
-                            "p_trace","range","roy_root","sd","sd_ratio",
+                            # "naive_bayes","one_nn","random_node","worst_node",
+                            # "can_cor","cor", "cov","g_mean",
+                            # "gravity","h_mean","iq_range","kurtosis",
+                            # "lh_trace","mad","max","mean","median","min",
+                            # "nr_cor_attr","nr_disc","nr_norm","nr_outliers",
+                            # "p_trace","range","roy_root","sd","sd_ratio",
                             "skewness","sparsity","t_mean","var","w_lambda"],
                   random_state=42)
     # unsup_mfe = MFE(groups=["statistical"], random_state=42)
@@ -174,13 +178,20 @@ if __name__ == "__main__":
     accurs = []
     off_targets = []
     off_preds = []
+    preds_lis = []
     for i in tqdm(range(test_size_ts)):
         itest = i+args.omega
         metas = lgb.train(lgb_params,
                           train_set=lgb.Dataset(mX[i:i+itest],
                                                 mY[i:i+itest]))
 
-        preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
+
+        raw_pred=metas.predict(mX[itest:itest+args.gamma])
+        print("raw_preds:", raw_pred)
+        # input('next...')
+        preds = np.where(raw_pred > .5, 1, 0)
+        
+        preds_lis.append(preds)
         targets = mY[itest:itest+args.gamma]
         if np.array_equal(preds, targets):
             kappas.append(1.0)
@@ -197,6 +208,8 @@ if __name__ == "__main__":
 
         off_targets.append(targets)
         off_preds.append(preds)
+    df_preds = pd.DataFrame(preds_lis)
+    df_preds.to_csv(path + 'meta_preds.csv')
 
     dump(off_preds, path + 'off_preds.joblib')
     dump(off_targets, path + 'off_targets.joblib')
