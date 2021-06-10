@@ -28,6 +28,9 @@ for ((i=1; i<=N_RUNS; i++))  do
       echo "    start:" + $(date "+%y%m%d.%H%M%S.%3N")
       python ms_nonincremental_new.py --omega 300 --gamma 20\
           --initial 300 --target class --eval_metric acc\
+          --test_size_ts 100\
+          --cache 0\
+          --quick 0\
           --path data/${dataset}_ninc/ #> new_experiments_outputs/$dataset-ninc-$i.output
       echo stop:  $(date "+%y%m%d.%H%M%S.%3N")
     done

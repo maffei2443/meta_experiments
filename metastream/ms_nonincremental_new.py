@@ -57,7 +57,7 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
             input(f"Escecao: {e}")
 
 def base_train(models, data, idx, sup_mfe, gamma,
-    omega, target, eval_metric):
+    omega, target, eval_metric, unsup_mfe=None):
     train = data.iloc[idx * gamma:idx * gamma + omega]
     sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 
@@ -65,8 +65,19 @@ def base_train(models, data, idx, sup_mfe, gamma,
     xsel, ysel = sel.drop(target, axis=1), sel[target]
 
     sup_mfe.fit(xtrain.values, ytrain.values)
-    ft = sup_mfe.extract()
-    mfe_feats = dict(zip(*ft))
+    mfe_feats = {}
+    if unsup_mfe:
+        unsup_mfe.fit(xtrain.values)
+        unsup_feats = {f'unsup_{k}':v for (k,v) in zip(*unsup_mfe.extract())}
+        mfe_feats.update(unsup_feats)
+        # print("unsup_features:", len(mfe_feats))
+    else:
+        print("APENAS SUPERVISIONADAS!!!")
+        # input()
+    sup_ft = sup_mfe.extract()
+    # print("sup_features:", len(sup_ft))
+    # input("...")
+    mfe_feats.update( dict(zip(*sup_ft)) )
 
     for model in models:
         model.fit(xtrain, ytrain)
@@ -86,12 +97,30 @@ if __name__ == "__main__":
     parser.add_argument('--eval_metric', help='eval metric for metastream.')
     parser.add_argument('--path', help='data path.')
     parser.add_argument('--metay', help='metay label.', default='best_classifier')
-    parser.add_argument('--test_size_ts', help='test_size_ts.', default=100)
+    parser.add_argument('--test_size_ts', help='test_size_ts.', default=100, type=int)
     parser.add_argument('--quick', help='wheter to use only general mtf.', 
-        default=1)
+        default=0, type=int)
+    parser.add_argument('--cache', help='wheter to use only general mtf.', 
+        default=1, type=int)
+    
 
     args, _ = parser.parse_known_args()
-
+    if not args.quick and not args.cache:
+        print("WHOLE EXPERIMENT....")
+    if not args.cache:
+        print("Erasing metabase...")
+        input()
+        try: 
+            if args.quick:
+                os.remove(args.path + 'metabase_quick.csv')
+            else:
+                os.remove(args.path + 'metabase.csv')
+        except Exception as e:
+            print("Dammit!", e)
+            input()
+    else:
+        print("GONNA USE CACHE!")
+        # input()
     metay_label = args.metay
     test_size_ts = args.test_size_ts
     args.initial += test_size_ts
@@ -105,7 +134,7 @@ if __name__ == "__main__":
         GaussianNB(),
         ComplementNB(),
         # linear models
-        # LogisticRegression(random_state=42, n_jobs=-1),
+        LogisticRegression(random_state=42, n_jobs=-1),
 
     ]
     params = [
@@ -125,13 +154,14 @@ if __name__ == "__main__":
             alpha=[0., 1.],
             norm=[True, False],
         ),
-        # dict(
-        #     max_iter=[100, 150],
-        #     multi_class=['ovr', 'multinomial'],
-        # )
+        dict(
+            max_iter=[100, 150],
+            multi_class=['ovr', 'multinomial'],
+        )
     ]
     
-    if args.quick:
+    # if args.quick:
+    if 1:
         params = []
 
 
@@ -183,7 +213,7 @@ if __name__ == "__main__":
     df = pd.read_csv(path +'data.csv')
     from sklearn.preprocessing import LabelEncoder as LE
     df[args.target] = LE().fit_transform(df[args.target])
-    print('target:\n\t', df[args.target])
+    # print('target:\n\t', df[args.target])
     # print("skipping fine tune...")
 
     fine_tune(df, args.initial, args.gamma, args.omega, models, params,
@@ -201,7 +231,7 @@ if __name__ == "__main__":
         sup_mfe = MFE(
             groups=['general'], features=['sd', 'min', 'max'], 
             num_cv_folds=1, summary=('mean',))
-        
+        unsup_mfe = None
         # base_data = pd.read_csv(path + 'metabase.csv')
     else:
         print("normal flow...")
@@ -214,6 +244,7 @@ if __name__ == "__main__":
                                 "p_trace","range","roy_root","sd","sd_ratio",
                                 "skewness","sparsity","t_mean","var","w_lambda"],
                     random_state=42)
+        unsup_mfe = MFE(groups=["statistical"], random_state=42)
     # unsup_mfe = MFE(groups=["statistical"], random_state=42)
     off_scores = []
 
@@ -221,11 +252,11 @@ if __name__ == "__main__":
     # initial data, which means the initial metabase
 
     # Se nao eh modo rapido OU [eh modo rapido e] nao tem metabase criada, crie-a
-    if not args.quick or not os.path.isfile(path + 'metabase_quick.csv'):
+    if (not args.quick or not os.path.isfile(path + 'metabase_quick.csv')) and not args.cache:
         for idx in tqdm(range(0, args.initial)):
             mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
                                         args.omega, args.target,
-                                        args.eval_metric)
+                                        args.eval_metric, unsup_mfe=unsup_mfe)
             off_scores.append(scores)
             # max_score = np.argmax(scores)
             mfe_feats[metay_label] = np.argmax(scores)
@@ -233,14 +264,22 @@ if __name__ == "__main__":
             dump(off_scores, path + 'off_scores.joblib')
         base_data = pd.DataFrame(metadf)
         if args.quick:
+            print("DUMPED QUICK_METABASE")
             base_data.to_csv(path + 'metabase_quick.csv', index=False)
         else:
+            print("DUMPED FULL_DATASET")
             base_data.to_csv(path + 'metabase.csv', index=False)
     else:        
         print("READING CACHED METABASE...")
-        base_data = pd.read_csv(path + 'metabase_quick.csv')
-    
-    print("Frequency statistics in metabase:")
+        # input()
+        if args.quick:
+            base_data = pd.read_csv(path + 'metabase_quick.csv')
+        else:
+            base_data = pd.read_csv(path + 'metabase.csv')
+
+    # print("BASE_DATA.columns:", base_data.columns)
+    # input()
+    # print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
                                      count/args.initial))
@@ -248,6 +287,10 @@ if __name__ == "__main__":
     ### DROP MISSING DATA AND TRAIN METAMODEL
     print("[OFFLINE LEARNING]")
     missing_columns = base_data.columns[base_data.isnull().any()].values
+    print('qtd columns:', len(base_data.columns))
+    print('missing columns:', len(missing_columns))
+    print('missing columns:', missing_columns)
+    
     base_data.drop(columns=missing_columns, inplace=True)
 
     mX, mY = base_data.drop(metay_label, axis=1).values,\
@@ -320,6 +363,7 @@ if __name__ == "__main__":
     ### ONLINE LEARNING
     print("[ONLINE LEARNING]")
     default = base_data[metay_label].value_counts().argmax()
+    print("BASE_DATASHAPE:", base_data.shape)
     metadf = np.empty((0, base_data.shape[1]-1), np.float32)
     metay = []
     counter = 0
@@ -337,13 +381,25 @@ if __name__ == "__main__":
     small_data = 5000000
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
-    # for idx in tqdm(range(args.initial, until_data)):
-    for idx in tqdm(range(args.initial, args.initial + 100)):
+    for idx in tqdm(range(args.initial, until_data)):
+    # for idx in tqdm(range(args.initial, args.initial + 10)):
         mfe_feats, scores = base_train(models, df, idx, sup_mfe, args.gamma,
                                        args.omega, args.target,
-                                       args.eval_metric)
+                                       args.eval_metric, unsup_mfe=unsup_mfe)
+        # print(len(mfe_feats))
+        # input()
+
         mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
                      not in missing_columns]]
+        # mfe_feats = [list(mfe_feats.values())]
+
+        # mfe_feats = [mfe_feats[k] for k in mfe_feats if k\
+        #              not in missing_columns]
+        
+        # print('metadf_shape:', metadf.shape)
+        # print("len(mfe_feats):", len(mfe_feats))
+        # print(mfe_feats)
+
         metadf = np.append(metadf, mfe_feats, axis=0)
         max_score = np.argmax(scores)
         meta_pred = metas.predict(mfe_feats)
