@@ -2,6 +2,7 @@
 #PBS -l walltime=3:00:00
 
 N_RUNS=$1
+RUN_OF_MODELS=$2
 cd metastream
 
 # echo incremental
@@ -22,15 +23,20 @@ mkdir new_experiments_outputs -p
 
 for ((i=1; i<=N_RUNS; i++))  do
     echo "N_RUN: $i"
-    for dataset in 'elec2'; do
+    for dataset in 'powersupply'; do
       echo "  Run: $i, data:  $dataset"
       echo "    $i-ninc"
       echo "    start:" + $(date "+%y%m%d.%H%M%S.%3N")
       python ms_nonincremental_new.py --omega 300 --gamma 20\
-          --initial 300 --target class --eval_metric acc\
+          --initial 400 --target class --eval_metric acc\
           --test_size_ts 100\
           --cache 0\
           --quick 0\
+          --save_metamodel 0\
+          --fine_tune 1\
+          --temporal_features 0\
+          --unsup_features 1\
+          --load_models 0\
           --path data/${dataset}_ninc/ #> new_experiments_outputs/$dataset-ninc-$i.output
       echo stop:  $(date "+%y%m%d.%H%M%S.%3N")
     done
