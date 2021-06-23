@@ -10,6 +10,9 @@ from joblib import dump, load
 
 from pymfe.mfe import MFE
 from tqdm import tqdm
+import tsfel
+from sklearn.decomposition import PCA
+
 
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -40,7 +43,7 @@ import mlflow
 from collections import namedtuple                                      
 NMP = namedtuple('NameModelParam', 'name model params')
 
-def fine_tune(data, data_temporal, initial, gamma, omega, m_p, 
+def fine_tune(data, initial, gamma, omega, m_p, 
   target, eval_metric):
   datasize = omega * initial // gamma - 1 # initial base data
   # tmp =
@@ -69,7 +72,7 @@ def train_sel_split(df, left, mid, right, target):
 
 
 def base_train_test(m_p, data, idx, sup_mfe, gamma,
-  omega, target, eval_metric, unsup_mfe=None):
+  omega, target, eval_metric, args, unsup_mfe=None):
 
   left = idx * gamma
   mid = left + omega
@@ -280,18 +283,8 @@ if __name__ == "__main__":
   df[args.target] = LE().fit_transform(df[args.target])
   df.drop(['date'], axis=1, inplace=True, errors='ignore')
 
-  if not args.temporal_feats:
-    df_temporal = pd.DataFrame()
-  else:
-    import tsfel
-    cfg_file = tsfel.get_features_by_domain()
-    df_temporal = tsfel.time_series_features_extractor(
-      cfg_file, df, window_size=300, 
-      overlap=299/300, fs=1,
-    )
-
   if args.fine_tune:
-    fine_tune(df, df_temporal, args.initial, args.gamma, 
+    fine_tune(df, args.initial, args.gamma, 
           args.omega, m_p, args.target, args.eval_metric)
     for tup in m_p:
       mlflow.sklearn.log_model(
@@ -328,15 +321,16 @@ if __name__ == "__main__":
 
   # This loop generates the data composing the
   # initial data, which means the initial metabase
-
   # Se nao eh modo rapido OU [eh modo rapido e] nao tem metabase criada, crie-a
   if not args.cache:
   # if (not args.fine_tune or not os.path.isfile(path + 'metabase_fine_tune.csv')) and not args.cache:
     scores_dict_lis = []
+    from sklearn.decomposition import PCA
+
     for idx in tqdm(range(0, args.initial)):
       mfe_feats, scores, score_dict = base_train_test(m_p, df, idx, sup_mfe, args.gamma,
                       args.omega, args.target,
-                      args.eval_metric, unsup_mfe=unsup_mfe)
+                      args.eval_metric, args,unsup_mfe=unsup_mfe)
 
       # mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
       #       not in missing_columns]]
@@ -387,6 +381,7 @@ if __name__ == "__main__":
 
   mX, mY = base_data.drop(metay_label, axis=1).values,\
     base_data[metay_label].values
+  
 
   kappas = []
   gmeans = []
@@ -474,9 +469,10 @@ if __name__ == "__main__":
   until_data = min(args.initial + small_data,
            int((df.shape[0]-args.omega)/args.gamma))
   for idx in tqdm(range(args.initial, until_data if not args.quick else (args.initial + 50))):
-    mfe_feats, scores, score_dict = base_train_test(m_p, df, idx, sup_mfe, args.gamma,
+    mfe_feats, scores, score_dict = base_train_test(
+      m_p, df, idx, sup_mfe, args.gamma,
                      args.omega, args.target,
-                     args.eval_metric, unsup_mfe=unsup_mfe)
+                     args.eval_metric, args, unsup_mfe=unsup_mfe)
     scores_lis.append(score_dict)
 
     score_dict['default'] = score_dict[m_p[default].name]

@@ -28,14 +28,14 @@ for ((i=1; i<=N_RUNS; i++))  do
       echo "    $i-ninc"
       echo "    start:" + $(date "+%y%m%d.%H%M%S.%3N")
       python ms_nonincremental_new.py --omega 300 --gamma 20\
-          --initial 400 --target class --eval_metric acc\
+          --initial 300 --target class --eval_metric acc\
           --test_size_ts 100\
           --cache 0\
           --quick 0\
-          --save_metamodel 0\
+          --save_metamodel 1\
           --fine_tune 1\
-          --temporal_features 0\
-          --unsup_features 1\
+          --temporal_features 1\
+          --unsup_features 0\
           --load_models 0\
           --path data/${dataset}_ninc/ #> new_experiments_outputs/$dataset-ninc-$i.output
       echo stop:  $(date "+%y%m%d.%H%M%S.%3N")
