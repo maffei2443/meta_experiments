@@ -1,5 +1,6 @@
 # TODO: RENOMEAR scorer --> metric, para não confundir as coisas
 
+import numpy as np
 from tqdm import tqdm
 
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -9,11 +10,13 @@ from typing import List, Tuple, Callable
 from collections import namedtuple                                      
 
 # import sklearn.metrics as M
-from imblearn.metrics import geometric_mean_score, classification_report_imbalanced
+from imblearn.metrics import geometric_mean_score
 from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer
 from sklearn.model_selection import RandomizedSearchCV, GridSearchCV
 
+import lightgbm as lgb
+import mlflow
 
 NMP = namedtuple('NameModelParam', 'name model params')
 
@@ -22,6 +25,20 @@ def split(lis, idx):
   return lis[:idx], lis[idx:]
 
 
+lgb_params = {
+  'boosting_type': 'dart',
+  'learning_rate': 0.01,
+  'tree_learner': 'feature',
+  'metric': 'multi_error,multi_logloss',
+  'objective': 'multiclassova',
+  'num_class': 2,
+  # 'metric': 'binary_error,binary_logloss',
+  # 'objective': 'binary',
+  'is_unbalance': True,
+  'verbose': -1,
+  'seed': 42
+}
+
 # def train_sel_split(df, left, mid, right, target):
 #   train, test = df.iloc[left:mid], df.iloc[mid:right]
 #   xtrain, ytrain = train.drop(target, axis=1), train[target]
@@ -29,13 +46,6 @@ def split(lis, idx):
 
 #   return xtrain, xtest, ytrain, ytest
 
-
-
-def cohen_kappa_score_(targets, preds):
-  if np.array_equal(targets, preds):
-    return 1.0
-  else:
-    return cohen_kappa_score(targets, preds)
 
 
 def meta_extractor(xdata, ydata, sup_mfe, unsup_mfe=None):
@@ -79,11 +89,16 @@ class MetaStream(BaseEstimator, TransformerMixin):
     self.meta_extractor = meta_extractor
     self.metabase = None
     self.metabase_scores = None
+
+    self.offline_metrics = None
+    self.offline_y = None
+
     self.search = search.lower()
 
+
+  # OK
   def _fine_tune(self, X, Y, initial, gamma, omega, scorer):
     datasize = omega * initial // gamma - 1
-    # fine_tune
     x, y = X.loc[:datasize], Y.loc[:datasize]
 
     for tup in tqdm(self.models, total=len(self.models)):
@@ -100,40 +115,52 @@ class MetaStream(BaseEstimator, TransformerMixin):
       tup.model.set_params(**optmizer.best_params_)
 
 
-  def _build_metabase(self, X, Y, gamma, omega, metric):
+  # 
+  def _build_metabase(self, X, Y, gamma, omega, metric, size, meta_extractor=None):
+    meta_extractor = meta_extractor or self.meta_extractor
     meta_ft_lis = []
     scores_dict_lis = []
     print("Building metabase..")
-    rev_map = dict(
-      [(t.name, idx) for (idx, t) in enumerate(self.models)]
-    )
-    for idx in tqdm(range(100)):
+
+    # for idx in tqdm(range(200)):
+    for idx in tqdm(range(size)):
       # print(idx)
       left = idx * gamma
       mid = left + omega
       right = mid + gamma
 
-      xtrain, xsel, ytrain, ysel = self._train_sel_split(
+      _xtrain, _xsel, _ytrain, _ysel = self._train_sel_split(
         X, Y, left, mid, right
       )
 
+
+      left = idx * gamma
+      right = (idx + 1) * gamma + omega
+
+      x, y = X[left:right], Y[left:right]
+      xtrain, xsel = np.split(x, [omega]) 
+      ytrain, ysel = np.split(y, [omega]) 
+
+      assert np.array_equal(_xtrain, xtrain)
+      assert np.array_equal(_xsel, xsel)
+      assert np.array_equal(_ytrain, ytrain)
+      assert np.array_equal(_ysel, ysel)
+
       mfe_feats = self.meta_extractor(xtrain, ytrain)
-      # extracao de metafeatures quase pronta, mas falta
-      # saber qual o melhor modelo.
-      # print(mfe_feats)
       score_dict = {}
-      #TODO: adicionar rótulo de melhor algoritmo (target)
-      ma, ma_name = -1, None
+      ma, ma_name = -np.inf, None
+
       for tup in self.models:
         tup.model.fit(xtrain, ytrain)
         pred = tup.model.predict(xsel)
-        score_dict[tup.name] = metric(ysel, pred)
-        
+        score_dict[tup.name] = metric(ysel, pred)        
         if score_dict[tup.name] > ma:
           ma = score_dict[tup.name]
-          ma_name = rev_map[tup.name]
-      mfe_feats['meta_label'] = ma
-      mfe_feats['meta_label_model'] = int(ma_name)
+          ma_name = tup.name
+
+      mfe_feats['meta_name'] = ma_name
+      mfe_feats['meta_best_classifier'] = ma
+      mfe_feats['meta_label'] = int(self.model_to_int[ma_name])
 
       scores_dict_lis.append( score_dict )
       lis = list(score_dict.items())
@@ -145,22 +172,73 @@ class MetaStream(BaseEstimator, TransformerMixin):
     return meta_df, scores_df
 
 
-  def _offline_learning(self):
+  def _offline_learning(self, omega, gamma, test_size, metric_dict, ):
     # TODO: relatar métricas especificadas em OFFLINE_LEARNING.
-    return
+    # print(sorted(self.metabase.columns))
+    print("[OFFLINE LEARNING]")
+    input()
+    missing_columns = self.metabase.columns[self.metabase.isnull().any()].values
+    metabase = self.metabase.drop(missing_columns, axis=1)
+    # print("METAFUCKING_SHAPE:", metabase.shape)
+    # print(sorted(self.metabase))
+    mX, mY = metabase.drop(
+      columns=metabase.filter(like='meta_', axis=1).columns
+    ).values, metabase['meta_label'].values
+    # print("mX.shape:", mX.shape)
+    # print("mY.shape:", mY.shape)
+    # input()
+    off_targets = []
+    off_preds = []
+    metrics = {k: [] for k in metric_dict}
+    # for i in tqdm(range(101)):
+    for i in tqdm(range(test_size)):
+      itest = i+omega
+      metas = lgb.train(lgb_params,
+                train_set=lgb.Dataset(mX[i:i+omega],
+                                      mY[i:i+omega]))
+      # print(f"omega={omega}, gamma={gamma}, i={i},  ")
+      # print("xpred.shape:", mX[itest:itest+gamma].shape)
+      raw_preds=metas.predict(mX[itest:itest+gamma])
+      # print("raw_preds.shape:", raw_preds.shape)
+      # print(raw_preds)
+      # input()
+      preds = np.apply_along_axis(np.argmax, 1, raw_preds)   
+      # print("preds:", preds)
+      targets = mY[itest:itest+gamma]
+      # print("targets:", targets)
+      for m, fun in metric_dict.items():
+        # print(fun)
+        res = fun(y_true=targets, y_pred=preds)
+        metrics[m].append( res )
+        # mlflow.log_metric(f'off_{m}', res, i)
 
+      off_targets.append(targets)
+      off_preds.append(preds)
+    return pd.DataFrame(metrics), pd.DataFrame(
+        dict(targets=off_targets, preds=off_preds)
+      )
 
-  def fit(self, X, Y, initial, gamma, omega, metric, fine_tune=True):
+  def fit(self, X, Y, initial, gamma, omega, metric, metabase_size,
+    fine_tune=True, offline_eval=False, offline_test_size=100,
+    offline_metrics={}, offline_learning_size=100, metabase=None, meta_scores=None):
     # This implements the offline stage of metastream.
     # Steps are as follows:
-    # 1- hyper parameter tuning
+    # 1 - hyper parameter tuning
     # 2 - generate metabase
 
-    self._fine_tune(X, Y, initial, gamma, omega, make_scorer(metric))
+    # self._fine_tune(X, Y, initial, gamma, omega, make_scorer(metric))
     
     self.metabase, self.metabase_scores = self._build_metabase(
-      X, Y, gamma=gamma,omega=omega, metric=metric, 
+      X, Y, gamma=gamma,omega=omega, metric=metric, size=metabase_size,
     )
+    if offline_eval:
+      df_metrics, df_y = self._offline_learning(
+        omega=omega, gamma=gamma, test_size=offline_test_size + offline_learning_size,
+        metric_dict=offline_metrics,
+      )
+      self.offline_metrics = df_metrics
+      self.offline_y = df_y
+    
     # self._offline_learning()
     # Gen_metabase
 
