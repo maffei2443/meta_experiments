@@ -15,14 +15,11 @@ from sklearn.metrics import cohen_kappa_score, mean_squared_error,\
     classification_report, accuracy_score, make_scorer
 from sklearn.model_selection import RandomizedSearchCV, GridSearchCV
 
+import metastream.helper as H
 import lightgbm as lgb
 import mlflow
 
-NMP = namedtuple('NameModelParam', 'name model params')
-
-
-def split(lis, idx):
-  return lis[:idx], lis[idx:]
+# NMP = namedtuple('NameModelParam', 'name model params')
 
 
 lgb_params = {
@@ -62,9 +59,9 @@ def meta_extractor(xdata, ydata, sup_mfe, unsup_mfe=None):
 
 class MetaStream(BaseEstimator, TransformerMixin):
   OFFLINE_METRICS = {
-    'cohen_kappa': cohen_kappa_score_,
-    'geometric_mean': geometric_mean_score,
-    'accuracy': accuracy_score,
+    'cohen_kappa': H.cohen_kappa_score,
+    'geometric_mean': H.geometric_mean_score,
+    'accuracy': H.accuracy_score,
   }
   
   @staticmethod
@@ -72,7 +69,7 @@ class MetaStream(BaseEstimator, TransformerMixin):
     return x.iloc[l:m], x.iloc[m:r], y.iloc[l:m], y.iloc[m:r]
 
 
-  def __init__(self, meta_estimator, models: List[NMP], 
+  def __init__(self, meta_estimator, models: List[dict], 
     meta_extractor: Callable = meta_extractor, search='random'):
     """[summary]
 
@@ -82,8 +79,8 @@ class MetaStream(BaseEstimator, TransformerMixin):
         meta_extractor (Callable): [an procedure to generate metafeatures given data]
     """
     self.meta_estimator = meta_estimator
-    self.int_to_model = {idx: m.name for (idx, m) in enumerate(models)}
-    self.model_to_int = {m.name: idx for (idx, m) in enumerate(models)}
+    self.int_to_model = {idx: m['name'] for (idx, m) in enumerate(models)}
+    self.model_to_int = {m['name']: idx for (idx, m) in enumerate(models)}
     self.models = models
 
     self.meta_extractor = meta_extractor
@@ -104,15 +101,15 @@ class MetaStream(BaseEstimator, TransformerMixin):
     for tup in tqdm(self.models, total=len(self.models)):
       if self.search == 'grid':          
         optmizer = GridSearchCV(
-          tup.model, tup.params, scoring=scorer,
+          tup['model'], tup['params'], scoring=scorer,
           cv=gamma, n_jobs=-1
         )
       elif self.search == 'random':
-        optmizer = RandomizedSearchCV(tup.model, tup.params, random_state=42,
+        optmizer = RandomizedSearchCV(tup['model'], tup['params'], random_state=42,
                     scoring=scorer, cv=gamma, n_jobs=-1)
 
       optmizer.fit(x, y)
-      tup.model.set_params(**optmizer.best_params_)
+      tup['model'].set_params(**optmizer.best_params_)
 
 
   # 
@@ -124,16 +121,6 @@ class MetaStream(BaseEstimator, TransformerMixin):
 
     # for idx in tqdm(range(200)):
     for idx in tqdm(range(size)):
-      # print(idx)
-      left = idx * gamma
-      mid = left + omega
-      right = mid + gamma
-
-      _xtrain, _xsel, _ytrain, _ysel = self._train_sel_split(
-        X, Y, left, mid, right
-      )
-
-
       left = idx * gamma
       right = (idx + 1) * gamma + omega
 
@@ -141,24 +128,19 @@ class MetaStream(BaseEstimator, TransformerMixin):
       xtrain, xsel = np.split(x, [omega]) 
       ytrain, ysel = np.split(y, [omega]) 
 
-      assert np.array_equal(_xtrain, xtrain)
-      assert np.array_equal(_xsel, xsel)
-      assert np.array_equal(_ytrain, ytrain)
-      assert np.array_equal(_ysel, ysel)
-
       mfe_feats = self.meta_extractor(xtrain, ytrain)
       score_dict = {}
       ma, ma_name = -np.inf, None
 
       for tup in self.models:
-        tup.model.fit(xtrain, ytrain)
-        pred = tup.model.predict(xsel)
-        score_dict[tup.name] = metric(ysel, pred)        
-        if score_dict[tup.name] > ma:
-          ma = score_dict[tup.name]
-          ma_name = tup.name
+        tup['model'].fit(xtrain, ytrain)
+        pred = tup['model'].predict(xsel)
+        score_dict[tup['name']] = metric(ysel, pred)        
+        if score_dict[tup['name']] > ma:
+          ma = score_dict[tup['name']]
+          ma_name = tup['name']
 
-      mfe_feats['meta_name'] = ma_name
+      mfe_feats['meta_best_name'] = ma_name
       mfe_feats['meta_best_classifier'] = ma
       mfe_feats['meta_label'] = int(self.model_to_int[ma_name])
 
@@ -176,47 +158,35 @@ class MetaStream(BaseEstimator, TransformerMixin):
     # TODO: relatar métricas especificadas em OFFLINE_LEARNING.
     # print(sorted(self.metabase.columns))
     print("[OFFLINE LEARNING]")
-    input()
     missing_columns = self.metabase.columns[self.metabase.isnull().any()].values
     metabase = self.metabase.drop(missing_columns, axis=1)
-    # print("METAFUCKING_SHAPE:", metabase.shape)
-    # print(sorted(self.metabase))
     mX, mY = metabase.drop(
       columns=metabase.filter(like='meta_', axis=1).columns
     ).values, metabase['meta_label'].values
-    # print("mX.shape:", mX.shape)
-    # print("mY.shape:", mY.shape)
-    # input()
     off_targets = []
     off_preds = []
     metrics = {k: [] for k in metric_dict}
-    # for i in tqdm(range(101)):
     for i in tqdm(range(test_size)):
       itest = i+omega
       metas = lgb.train(lgb_params,
                 train_set=lgb.Dataset(mX[i:i+omega],
                                       mY[i:i+omega]))
-      # print(f"omega={omega}, gamma={gamma}, i={i},  ")
-      # print("xpred.shape:", mX[itest:itest+gamma].shape)
       raw_preds=metas.predict(mX[itest:itest+gamma])
-      # print("raw_preds.shape:", raw_preds.shape)
-      # print(raw_preds)
-      # input()
       preds = np.apply_along_axis(np.argmax, 1, raw_preds)   
-      # print("preds:", preds)
       targets = mY[itest:itest+gamma]
-      # print("targets:", targets)
       for m, fun in metric_dict.items():
-        # print(fun)
         res = fun(y_true=targets, y_pred=preds)
         metrics[m].append( res )
         # mlflow.log_metric(f'off_{m}', res, i)
 
       off_targets.append(targets)
       off_preds.append(preds)
-    return pd.DataFrame(metrics), pd.DataFrame(
-        dict(targets=off_targets, preds=off_preds)
-      )
+    print(len(off_targets), len(off_preds))
+    return (
+      pd.DataFrame(metrics), 
+      pd.DataFrame(dict(y_true=off_target, y_preds=off_preds)),
+    )
+
 
   def fit(self, X, Y, initial, gamma, omega, metric, metabase_size,
     fine_tune=True, offline_eval=False, offline_test_size=100,
@@ -250,46 +220,4 @@ class MetaStream(BaseEstimator, TransformerMixin):
   
   def online_predict():
     pass
-
-
-def fine_tune(data, initial, gamma, omega, models_tup: NMP, 
-  target, eval_metric):
-  datasize = omega * initial // gamma - 1 # initial base data
-  # tmp =
-  Xcv, ycv = data.loc[:datasize].drop([target], axis=1),\
-    data.loc[:datasize, target]
-  for tup in tqdm(models_tup, total=len(models_tup)):
-      
-      print("Finetuning %s" % tup.name , "..." )                  
-      # rscv = RandomizedSearchCV(tup.model, tup.params, random_state=42,
-      #             scoring=make_scorer(metrics[eval_metric]),
-      #             cv = gamma, n_jobs=-1)
-      rscv = GridSearchCV(tup.model, tup.params,
-                  # random_state=42,
-                  scoring=make_scorer(metrics[eval_metric]),
-                  cv = gamma, n_jobs=-1)
-      rscv.fit(Xcv, ycv)
-
-      tup.model.set_params(**rscv.best_params_)
-
-
-def offline(models):
-  fine_tune()
-  build_metabase()
-
-def online(metamodel, models, data: pd.DataFrame , is_experiment=True):
-  # for 
-  metamodel.predict()
-  if is_experiment:
-    for m in models:
-      m.fit(X, Y)
-    
-
-
-
-def metastream():
-  offline()
-  online()
-
-
 
