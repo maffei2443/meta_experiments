@@ -23,9 +23,6 @@ from sklearn.kernel_approximation import Nystroem
 
 import lightgbm as lgb
 
-import mlflow
-# mlflow.lightgbm.autolog()
-# mlflow.sklearn.autolog()
 
 
 parser = argparse.ArgumentParser(description='Process params for metastream.')
@@ -85,8 +82,7 @@ def fine_tune(data, initial, gamma, omega, models, params, target, eval_metric):
         rscv.fit(Xcv, ycv)
         model.set_params(**rscv.best_params_)
 
-def base_train(data, idx, sup_mfe, unsup_mfe, gamma, 
-    omega, models, target, eval_metric):
+def base_train(data, idx, sup_mfe, unsup_mfe, gamma, omega, models, target, eval_metric):
     train = data.iloc[idx * gamma:idx * gamma + omega]
     sel = data.iloc[idx * gamma + omega:(idx+1) * gamma + omega]
 
@@ -110,21 +106,17 @@ def base_train(data, idx, sup_mfe, unsup_mfe, gamma,
 
     return mfe_feats, scores
 
-
-from pathlib import Path
 if __name__ == "__main__":
-    # path = args.path
-    path = Path(args.path)
+    path = args.path
     ### LOAD DATA AND FINE TUNE TO INITIAL DATA
     print("[FINETUNING BASE MODELS]")
-    df = pd.read_csv(path / 'data.csv')
+    df = pd.read_csv(path +'data.csv')
 
     fine_tune(df, args.initial, args.gamma, args.omega, models, params,
               args.target, args.eval_metric)
-    dump(models, path /  'models.joblib')
-    models = load(path /  'models.joblib')
-    
-    ######## DEFINE EXTRATORES DE METACARACTERÍSTICAS
+    dump(models, path + 'models.joblib')
+    models = load(path + 'models.joblib')
+    ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA
     print("[GENERATE METAFEATURE]")
     metadf = []
     sup_mfe = MFE(features=["best_node","elite_nn","linear_discr",
@@ -137,40 +129,25 @@ if __name__ == "__main__":
                             "skewness","sparsity","t_mean","var","w_lambda"],
                   random_state=42)
     unsup_mfe = MFE(groups=["statistical"], random_state=42)
-    ######## DEFINE EXTRATORES DE METACARACTERÍSTICAS [END]
     
-
-    ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA.
-    off_scores = []
     for idx in tqdm(range(0, args.initial)):
         mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
                                        args.omega, models, args.target,
                                        args.eval_metric)
-        off_scores.append(scores)
         max_score = np.argmax(scores)
+        # Rotulação do metaexemplo
         mfe_feats[metay_label] = max_score
         metadf.append(mfe_feats)
-    ### GENERATE METAFEATURES AND BEST CLASSIFIER FOR INITIAL DATA. [END]
-
-    # dump(off_scores, path /  'off_scores.joblib')
-
-    # Converte lista de dicionários para DataFrame
+    
     base_data = pd.DataFrame(metadf)
-    base_data.to_csv(path /  'metabase.csv', index=False)
-    base_data = pd.read_csv(path /  'metabase.csv')
-    # Converte lista de dicionários para DataFrame [END]
-
-    ### MOSTRA FREQUÊNCIA DOS METARÓTULOS
+    base_data.to_csv(path + 'metabase.csv', index=False)
+    base_data = pd.read_csv(path + 'metabase.csv')
     print("Frequency statistics in metabase:")
     for idx, count in base_data[metay_label].value_counts().items():
         print("\t{:25}{:.3f}".format(str(models[idx]).split('(')[0],
                                      count/args.initial))
-    ### MOSTRA FREQUÊNCIA DOS METARÓTULOS [END]
 
-
-    ### DROP MISSING DATA AND TRAIN METAMODEL.
-    # acho porém que isso não era necessário, já que o metaclassificador
-    # aqui lida com dados faltantes
+    ### DROP MISSING DATA AND TRAIN METAMODEL
     print("[OFFLINE LEARNING]")
     missing_columns = base_data.columns[base_data.isnull().any()].values
     base_data.drop(columns=missing_columns, inplace=True)
@@ -181,14 +158,12 @@ if __name__ == "__main__":
     kappas = []
     gmeans = []
     accurs = []
-    off_targets = []
-    off_preds = []
-    # Teste do metamodelo treinando com os dados da metabase inicial e predizendo
     for i in tqdm(range(test_size_ts)):
         itest = i+args.omega
         metas = lgb.train(lgb_params,
-                          train_set=lgb.Dataset(mX[i:itest],
-                                                mY[i:itest]))
+                  train_set=lgb.Dataset(mX[i:i+args.omega],
+                                        mY[i:i+args.omega])
+                )
 
         preds = np.where(metas.predict(mX[itest:itest+args.gamma])>.5, 1, 0)
         targets = mY[itest:itest+args.gamma]
@@ -198,88 +173,76 @@ if __name__ == "__main__":
             kappas.append(cohen_kappa_score(targets, preds))
         gmeans.append(geometric_mean_score(targets, preds))
         accurs.append(accuracy_score(targets, preds))
-        off_targets.append(targets)
-        off_preds.append(preds)
 
-    # SALVANDO PREDIÇÕES E METAMODELO
-    dump(off_preds, path /  'off_preds.joblib')
-    dump(off_targets, path /  'off_targets.joblib')
-    metas.save_model(path /  'metamodel.txt')
-    metas = lgb.Booster(model_file=path /  'metamodel.txt')
-    # SALVANDO PREDIÇÕES E METAMODELO [END]
-
-    # MOSTRANDO MÉTRICAS USADAS PARA AVALIAR O METAMODELO
+    metas.save_model(path + 'metamodel.txt')
+    metas = lgb.Booster(model_file=path + 'metamodel.txt')
     print("Kappa:    {:.3f}+-{:.3f}".format(np.mean(kappas), np.std(kappas)))
     print("GMean:    {:.3f}+-{:.3f}".format(np.mean(gmeans), np.std(gmeans)))
     print("Accuracy: {:.3f}+-{:.3f}".format(np.mean(accurs), np.std(accurs)))
-    # MOSTRANDO MÉTRICAS USADAS PARA AVALIAR O METAMODELO [END]
-
-    # DUMP DE FEATURE IMPORTANCE
     importance = metas.feature_importance()
     fnames = base_data.columns
-    dump(importance, path /  'importance.joblib')
-    dump(fnames, path /  'fnames.joblib')
-    # DUMP DE FEATURE IMPORTANCE [END]
+    dump(importance, path + 'importance.joblib')
+    dump(fnames, path + 'fnames.joblib')
 
     ### ONLINE LEARNING
     print("[ONLINE LEARNING]")
     default = base_data[metay_label].value_counts().argmax()
-    # !!!!!
-    # O menos um é porque na base que será gerada NÃO há rótulo de antemão
     metadf = np.empty((0, base_data.shape[1]-1), np.float32)
     metay = []
     counter = 0
 
-    # m_recommended = []
-    # m_best = []
-    # m_diff = []
-    # f_importance = []
+    m_recommended = []
+    m_best = []
+    m_diff = []
+    f_importance = []
 
-    # score_recommended = []
-    # score_default = []
-    # score_svm = []
-    # score_rf = []
+    score_recommended = []
+    score_default = []
+    score_svm = []
+    score_rf = []
 
     small_data = 5000000
     until_data = min(args.initial + small_data,
                      int((df.shape[0]-args.omega)/args.gamma))
     for idx in tqdm(range(args.initial, until_data)):
-        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe, args.gamma,
-                                       args.omega, models, args.target,
-                                       args.eval_metric)
-        mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
-                     not in missing_columns]]
-        metadf = np.append(metadf, mfe_feats, axis=0)
+        mfe_feats, scores = base_train(df, idx, sup_mfe, unsup_mfe,
+                              args.gamma, args.omega, models, 
+                              args.target, args.eval_metric)
         max_score = np.argmax(scores)
+        # mfe_feats = [[mfe_feats[k] for k in mfe_feats if k\
+        #              not in missing_columns]]
         recommended = np.where(metas.predict(mfe_feats)>.5, 1, 0)[0]
+        metadf = np.append(metadf, mfe_feats, axis=0)
 
-        # score_svm.append(scores[0])
-        # score_rf.append(scores[1])
-        # m_recommended.append(recommended)
-        # m_best.append(max_score)
-        # m_diff.append(scores[recommended] - scores[default])
-        # score_recommended.append(scores[recommended])
-        # score_default.append(scores[default])
+        if 1:
+          score_svm.append(scores[0])
+          score_rf.append(scores[1])
+          m_recommended.append(recommended)
+          m_best.append(max_score)
+          m_diff.append(scores[recommended] - scores[default])
+          score_recommended.append(scores[recommended])
+          score_default.append(scores[default])
 
         metay.append(max_score)
         counter += 1
         if counter % args.gamma == 0:
-            metas = lgb.train(lgb_params, init_model=metas,
-                              train_set=lgb.Dataset(metadf[-args.gamma:],
-                                                    metay[-args.gamma:]))
+            print("metaretraining...")
+            print(len(metay), metadf.shape)
+            input()
+            metas = lgb.train(lgb_params,
+                              train_set=lgb.Dataset(metadf[-args.omega:],
+                                                    metay[-args.omega:]))
             f_importance.append(metas.feature_importance())
-    ### ONLINE LEARNING [END]
 
-
-    dump(m_recommended, path /  'recommended.joblib')
-    dump(m_best, path /  'best.joblib')
-    dump(m_diff, path /  'difference.joblib')
-    dump(score_recommended, path /  'score_reco.joblib')
-    dump(score_default, path /  'score_def.joblib')
-    dump(score_svm, path /  'score_svm.joblib')
-    dump(score_rf, path /  'score_rf.joblib')
-    dump(metadf, path /  'metadf.joblib')
-    # dump(f_importance, path /  'tfi.joblib')
+    dump(m_recommended, path + 'recommended.joblib')
+    dump(m_best, path + 'best.joblib')
+    dump(m_diff, path + 'difference.joblib')
+    dump(score_recommended, path + 'score_reco.joblib')
+    dump(score_default, path + 'score_def.joblib')
+    dump(score_svm, path + 'score_svm.joblib')
+    dump(score_rf, path + 'score_rf.joblib')
+    dump(metadf, path + 'metadf.joblib')
+    dump(f_importance, path + 'tfi.joblib')
     print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
     print("GMean: ", geometric_mean_score(m_best, m_recommended))
     print("Accuracy: ", accuracy_score(m_best, m_recommended))
